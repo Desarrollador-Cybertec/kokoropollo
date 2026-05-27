@@ -73,6 +73,9 @@ require dirname(__DIR__) . '/partials/head.php';
             <!-- Categoría -->
             <?php
             $categoriaActual = $editarItem['categoria'] ?? 'Otros';
+            if (in_array($categoriaActual, ['Pollo', 'Asado', 'Broaster'], true)) {
+                $categoriaActual = 'Pollo Crudo';
+            }
             $esPolloForm     = $categoriaActual === 'Pollo Crudo';
             $cuartosRaw      = (int) ($editarItem['cantidad'] ?? 0);
             $cantidadDisplay = $esPolloForm ? intdiv($cuartosRaw, 4) : $cuartosRaw;
@@ -171,29 +174,33 @@ require dirname(__DIR__) . '/partials/head.php';
                 </thead>
                 <tbody>
                 <?php foreach ($items as $item):
-                    $cat = $categorias[$item['categoria']] ?? $categorias['Otros'];
+                    $categoriaItem = (string) ($item['categoria'] ?? 'Otros');
+                    if (in_array($categoriaItem, ['Pollo', 'Asado', 'Broaster'], true)) {
+                        $categoriaItem = 'Pollo Crudo';
+                    }
+                    $cat = $categorias[$categoriaItem] ?? $categorias['Otros'];
                 ?>
                     <tr class="border-b text-white tr-dark" style="border-color:var(--rojo-mid);">
                         <td class="px-4 py-4" style="color:#9ca3af;"><?= (int) $item['id'] ?></td>
                         <td class="px-4 py-4 font-semibold"><?= View::escape($item['articulo']) ?></td>
                         <td class="px-4 py-4">
                             <span class="px-3 py-1 rounded-full text-sm font-bold <?= $cat['color'] ?>">
-                                <?= $cat['emoji'] ?> <?= View::escape($item['categoria']) ?>
+                                <?= $cat['emoji'] ?> <?= View::escape($categoriaItem) ?>
                             </span>
                         </td>
                         <?php
-                        $esPollo  = $item['categoria'] === 'Pollo Crudo';
+                        $esPollo  = $categoriaItem === 'Pollo Crudo';
                         $stockBajo = $esPollo
                             ? (int)$item['cantidad'] < 4    // menos de 1 pollo
                             : (int)$item['cantidad'] <= 5;
                         ?>
                         <td class="px-4 py-4">
                             <span class="font-bold <?= $stockBajo ? 'text-red-400' : 'text-green-400' ?>">
-                                <?= formatCantidad((int) $item['cantidad'], $item['categoria']) ?>
+                                <?= formatCantidad((int) $item['cantidad'], $categoriaItem) ?>
                             </span>
                         </td>
                         <td class="px-4 py-4 font-semibold" style="color:var(--oro);">
-                            <?php $valorTabla = $item['categoria'] === 'Pollo Crudo' ? ((float) $item['valor'] * 4) : (float) $item['valor']; ?>
+                            <?php $valorTabla = $categoriaItem === 'Pollo Crudo' ? ((float) $item['valor'] * 4) : (float) $item['valor']; ?>
                             $<?= number_format($valorTabla, 0, ',', '.') ?>
                         </td>
                         <td class="px-4 py-4">

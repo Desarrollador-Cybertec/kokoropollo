@@ -399,11 +399,19 @@ function actualizarStockCard(prodId, cantDeducida) {
     let stock = parseInt(card.dataset.stock) - cantDeducida;
     if (stock < 0) stock = 0;
     card.dataset.stock = stock;
+
+    const esPolloCrudo = card.dataset.cat === 'Pollo Crudo';
     const stkEl = card.querySelector('.prod-stk');
     if (stkEl) {
-        stkEl.textContent = stock + ' disponibles';
-        stkEl.className   = 'prod-stk ' + (stock <= 5 ? 'text-red-400' : 'text-green-400');
+        if (esPolloCrudo) {
+            stkEl.textContent = `${Math.floor(stock / 4)} pollos (${stock} cuartos)`;
+            stkEl.className = 'prod-stk ' + (stock <= 4 ? 'text-red-400' : 'text-green-400');
+        } else {
+            stkEl.textContent = stock + ' disponibles';
+            stkEl.className = 'prod-stk ' + (stock <= 5 ? 'text-red-400' : 'text-green-400');
+        }
     }
+
     if (stock <= 0) card.classList.add('sin-stock');
 }
 
