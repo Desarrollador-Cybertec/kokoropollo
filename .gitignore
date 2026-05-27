@@ -1,0 +1,6 @@
+vendor/
+.env
+storage/logs/*.log
+*.zip
+backups/
+.php-ini
