@@ -7,13 +7,12 @@ namespace App\Controllers;
 use App\Core\{Csrf, Logger, Request, Response, Session, View};
 use App\Enums\Rol;
 use App\Middleware\AuthMiddleware;
-use App\Models\{Inventario, Venta};
+use App\Models\{Configuracion, Inventario, Venta};
 
 final class VentasController
 {
     private const CATEGORIAS_CONFIG = [
-        'Asado'           => ['emoji' => '🍗', 'label' => 'Asado'],
-        'Broaster'        => ['emoji' => '🍳', 'label' => 'Broaster'],
+        'Pollo Crudo'     => ['emoji' => '🐔', 'label' => 'Pollo Crudo'],
         'Papas'           => ['emoji' => '🥔', 'label' => 'Papas'],
         'Acompañamientos' => ['emoji' => '🍌', 'label' => 'Acompañ.'],
         'Salsas'          => ['emoji' => '🫙', 'label' => 'Salsas'],
@@ -25,15 +24,36 @@ final class VentasController
     {
         AuthMiddleware::handle();
 
-        $productos        = (new Inventario())->forSelect();
+        $productos = array_values(array_filter(
+            (new Inventario())->forSelect(),
+            static fn(array $p): bool => !in_array((string) ($p['categoria'] ?? ''), ['Asado', 'Broaster'], true)
+        ));
         $productosJson    = json_encode(array_values($productos), JSON_UNESCAPED_UNICODE);
         $totalDia         = (new Venta())->sumToday();
         $rol              = Rol::tryFrom(Session::get('rol') ?? '');
         $dashboardUrl     = $rol?->dashboard() ?? '/dashboard';
         $categoriasConfig = self::CATEGORIAS_CONFIG;
 
+        $cfg = (new Configuracion())->getMany([
+            'precio_asado_cuarto', 'precio_asado_medio', 'precio_asado_entero',
+            'precio_broaster_cuarto', 'precio_broaster_medio', 'precio_broaster_entero',
+        ]);
+        $preciosPolloJson = json_encode([
+            'Asado'    => [
+                'cuarto' => (float) $cfg['precio_asado_cuarto'],
+                'medio'  => (float) $cfg['precio_asado_medio'],
+                'entero' => (float) $cfg['precio_asado_entero'],
+            ],
+            'Broaster' => [
+                'cuarto' => (float) $cfg['precio_broaster_cuarto'],
+                'medio'  => (float) $cfg['precio_broaster_medio'],
+                'entero' => (float) $cfg['precio_broaster_entero'],
+            ],
+        ]);
+
         View::render('ventas/index', compact(
-            'productos', 'productosJson', 'totalDia', 'dashboardUrl', 'categoriasConfig'
+            'productos', 'productosJson', 'totalDia', 'dashboardUrl',
+            'categoriasConfig', 'preciosPolloJson'
         ));
     }
 

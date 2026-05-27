@@ -81,6 +81,6 @@ final class Inventario
     /** Valores válidos del ENUM categoria */
     public static function categorias(): array
     {
-        return ['Asado', 'Broaster', 'Papas', 'Acompañamientos', 'Salsas', 'Bebidas', 'Otros'];
+        return ['Pollo Crudo', 'Papas', 'Acompañamientos', 'Salsas', 'Bebidas', 'Otros'];
     }
 }

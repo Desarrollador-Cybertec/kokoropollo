@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS `usuarios` (
 CREATE TABLE IF NOT EXISTS `inventario` (
     `id`          INT UNSIGNED    NOT NULL AUTO_INCREMENT,
     `articulo`    VARCHAR(150)    NOT NULL,
-    `categoria`   ENUM('Pollo','Papas','Salsas','Bebidas','Otros')
+    `categoria`   ENUM('Pollo Crudo','Papas','Acompañamientos','Salsas','Bebidas','Otros')
                                   NOT NULL DEFAULT 'Otros',
     `cantidad`    INT UNSIGNED    NOT NULL DEFAULT 0,
     `valor`       DECIMAL(12,2)   NOT NULL DEFAULT 0.00,
@@ -89,3 +89,21 @@ CREATE TABLE IF NOT EXISTS `ventas` (
         ON DELETE RESTRICT
         ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────────────────────
+-- TABLA: configuracion  (clave-valor para parámetros globales)
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `configuracion` (
+    `clave` VARCHAR(100)  NOT NULL,
+    `valor` VARCHAR(500)  NOT NULL DEFAULT '',
+    PRIMARY KEY (`clave`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Precios iniciales en 0 (configurar desde /config)
+INSERT IGNORE INTO `configuracion` (`clave`, `valor`) VALUES
+    ('precio_asado_cuarto',    '0'),
+    ('precio_asado_medio',     '0'),
+    ('precio_asado_entero',    '0'),
+    ('precio_broaster_cuarto', '0'),
+    ('precio_broaster_medio',  '0'),
+    ('precio_broaster_entero', '0');

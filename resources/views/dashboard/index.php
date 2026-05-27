@@ -24,10 +24,10 @@ require dirname(__DIR__) . '/partials/head.php';
         <?= $esAdmin ? 'Panel de Administración' : 'Panel de Empleado' ?>
     </p>
 
-    <div class="rounded-2xl shadow-2xl p-8 w-full <?= $esAdmin ? 'max-w-2xl' : 'max-w-xl' ?>"
+    <div class="rounded-2xl shadow-2xl p-8 w-full <?= $esAdmin ? 'max-w-3xl' : 'max-w-xl' ?>"
          style="background-color:rgba(74,14,14,0.8);">
 
-        <div class="grid <?= $esAdmin ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-3' ?> gap-5">
+        <div class="grid <?= $esAdmin ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-3' ?> gap-5">
 
             <a href="/inventario"
                class="flex flex-col items-center gap-3 font-black text-xl rounded-2xl py-8 px-4 shadow-lg transition-all hover:scale-105 active:scale-95 btn-primary">
@@ -40,6 +40,11 @@ require dirname(__DIR__) . '/partials/head.php';
                class="flex flex-col items-center gap-3 font-black text-xl rounded-2xl py-8 px-4 shadow-lg transition-all hover:scale-105 active:scale-95 btn-primary">
                 <span class="text-5xl">👥</span>
                 USUARIOS
+            </a>
+            <a href="/config"
+               class="flex flex-col items-center gap-3 font-black text-xl rounded-2xl py-8 px-4 shadow-lg transition-all hover:scale-105 active:scale-95 btn-primary">
+                <span class="text-5xl">⚙️</span>
+                CONFIG
             </a>
             <?php endif; ?>
 

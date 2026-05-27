@@ -2,9 +2,31 @@
 declare(strict_types=1);
 use App\Core\{Csrf, View};
 
+$items = (isset($items) && is_array($items)) ? $items : [];
+$editarItem = (isset($editarItem) && is_array($editarItem)) ? $editarItem : null;
+$busqueda = isset($busqueda) ? (string) $busqueda : '';
+$dashboardUrl = isset($dashboardUrl) ? (string) $dashboardUrl : '/dashboard';
+
+/**
+ * Formatea la cantidad según la categoría.
+ * Pollo Crudo se rastrea en cuartos internamente pero se muestra en pollos.
+ */
+function formatCantidad(int $cuartos, string $categoria): string
+{
+    if ($categoria !== 'Pollo Crudo') {
+        return $cuartos . ' uds';
+    }
+    $pollos = intdiv($cuartos, 4);
+    $resto  = $cuartos % 4;
+    $s = $pollos . ($pollos === 1 ? ' pollo' : ' pollos');
+    if ($resto > 0) {
+        $s .= ' + ' . $resto . ($resto === 1 ? ' cuarto' : ' cuartos');
+    }
+    return $s;
+}
+
 $categorias = [
-    'Asado'           => ['emoji' => '🍗', 'color' => 'bg-red-900 text-red-200'],
-    'Broaster'        => ['emoji' => '🍳', 'color' => 'bg-orange-800 text-orange-200'],
+    'Pollo Crudo'     => ['emoji' => '🐔', 'color' => 'bg-amber-900 text-amber-200'],
     'Papas'           => ['emoji' => '🥔', 'color' => 'bg-yellow-800 text-yellow-200'],
     'Acompañamientos' => ['emoji' => '🍌', 'color' => 'bg-lime-900 text-lime-200'],
     'Salsas'          => ['emoji' => '🫙', 'color' => 'bg-teal-900 text-teal-200'],
@@ -49,14 +71,22 @@ require dirname(__DIR__) . '/partials/head.php';
             </div>
 
             <!-- Categoría -->
+            <?php
+            $categoriaActual = $editarItem['categoria'] ?? 'Otros';
+            $esPolloForm     = $categoriaActual === 'Pollo Crudo';
+            $cuartosRaw      = (int) ($editarItem['cantidad'] ?? 0);
+            $cantidadDisplay = $esPolloForm ? intdiv($cuartosRaw, 4) : $cuartosRaw;
+            $valorRaw        = (float) ($editarItem['valor'] ?? 0);
+            $valorDisplay    = $esPolloForm ? ($valorRaw * 4) : $valorRaw;
+            ?>
             <div>
                 <label class="block text-sm font-bold mb-1" style="color:var(--oro);">Categoría</label>
-                <select name="categoria" required
+                <select id="selectCategoria" name="categoria" required
                         class="w-full text-lg px-4 py-3 rounded-xl font-semibold input-dark"
                         style="color:var(--oro); appearance:none;">
                     <?php foreach ($categorias as $cat => $cfg): ?>
                         <option value="<?= $cat ?>"
-                            <?= ($editarItem['categoria'] ?? 'Otros') === $cat ? 'selected' : '' ?>
+                            <?= $categoriaActual === $cat ? 'selected' : '' ?>
                             style="background-color:var(--rojo-deep); color:var(--oro);">
                             <?= $cfg['emoji'] ?> <?= $cat ?>
                         </option>
@@ -66,18 +96,26 @@ require dirname(__DIR__) . '/partials/head.php';
 
             <!-- Cantidad -->
             <div>
-                <label class="block text-sm font-bold mb-1" style="color:var(--oro);">Cantidad</label>
-                <input type="number" name="cantidad" placeholder="0"
-                       value="<?= (int) ($editarItem['cantidad'] ?? 0) ?>"
+                <label id="labelCantidad" class="block text-sm font-bold mb-1" style="color:var(--oro);">
+                    <?= $esPolloForm ? 'Pollos enteros' : 'Cantidad' ?>
+                </label>
+                <input type="number" id="inputCantidad" name="cantidad" placeholder="0"
+                       value="<?= $cantidadDisplay ?>"
+                       data-cuartos-raw="<?= $cuartosRaw ?>"
                        required min="0"
                        class="w-full text-lg px-4 py-3 rounded-xl input-dark">
+                <p id="notaCantidad" class="text-xs mt-1 font-semibold" style="color:#9ca3af;">
+                    <?= $esPolloForm ? '(1 pollo = 4 cuartos)' : '' ?>
+                </p>
             </div>
 
             <!-- Valor -->
             <div>
-                <label class="block text-sm font-bold mb-1" style="color:var(--oro);">Valor $</label>
+                <label id="labelValor" class="block text-sm font-bold mb-1" style="color:var(--oro);">
+                    <?= $esPolloForm ? 'Costo por pollo $' : 'Valor $' ?>
+                </label>
                 <input type="number" name="valor" placeholder="0"
-                       value="<?= (float) ($editarItem['valor'] ?? 0) ?>"
+                       value="<?= $valorDisplay ?>"
                        required min="0" step="0.01"
                        class="w-full text-lg px-4 py-3 rounded-xl input-dark">
             </div>
@@ -143,13 +181,20 @@ require dirname(__DIR__) . '/partials/head.php';
                                 <?= $cat['emoji'] ?> <?= View::escape($item['categoria']) ?>
                             </span>
                         </td>
+                        <?php
+                        $esPollo  = $item['categoria'] === 'Pollo Crudo';
+                        $stockBajo = $esPollo
+                            ? (int)$item['cantidad'] < 4    // menos de 1 pollo
+                            : (int)$item['cantidad'] <= 5;
+                        ?>
                         <td class="px-4 py-4">
-                            <span class="font-bold <?= (int)$item['cantidad'] <= 5 ? 'text-red-400' : 'text-green-400' ?>">
-                                <?= (int) $item['cantidad'] ?> uds
+                            <span class="font-bold <?= $stockBajo ? 'text-red-400' : 'text-green-400' ?>">
+                                <?= formatCantidad((int) $item['cantidad'], $item['categoria']) ?>
                             </span>
                         </td>
                         <td class="px-4 py-4 font-semibold" style="color:var(--oro);">
-                            $<?= number_format((float) $item['valor'], 0, ',', '.') ?>
+                            <?php $valorTabla = $item['categoria'] === 'Pollo Crudo' ? ((float) $item['valor'] * 4) : (float) $item['valor']; ?>
+                            $<?= number_format($valorTabla, 0, ',', '.') ?>
                         </td>
                         <td class="px-4 py-4">
                             <div class="flex gap-2 flex-wrap">
@@ -190,6 +235,35 @@ require dirname(__DIR__) . '/partials/head.php';
    class="fixed bottom-5 right-5 font-black text-lg px-6 py-4 rounded-xl shadow-lg btn-primary">
     ← REGRESAR
 </a>
+
+<script>
+(function () {
+    const CAT_POLLO_CRUDO = 'Pollo Crudo';
+    const sel   = document.getElementById('selectCategoria');
+    const input = document.getElementById('inputCantidad');
+    const labelValor = document.getElementById('labelValor');
+    const label = document.getElementById('labelCantidad');
+    const nota  = document.getElementById('notaCantidad');
+    if (!sel || !input) return;
+
+    function aplicarModoPollo(esPollo) {
+        label.textContent   = esPollo ? 'Pollos enteros' : 'Cantidad';
+        if (labelValor) labelValor.textContent = esPollo ? 'Costo por pollo $' : 'Valor $';
+        nota.textContent    = esPollo ? '(1 pollo = 4 cuartos)' : '';
+        input.dataset.modo  = esPollo ? 'pollos' : 'unidades';
+    }
+
+    // Estado inicial ya fijado por PHP; solo actualizamos dataset.modo
+    aplicarModoPollo(sel.value === CAT_POLLO_CRUDO);
+
+    // Cambio de categoría
+    sel.addEventListener('change', function () {
+        const esPollo = this.value === CAT_POLLO_CRUDO;
+        input.value   = '';           // limpiar para que el usuario ingrese el nuevo valor
+        aplicarModoPollo(esPollo);
+    });
+})();
+</script>
 
 </body>
 </html>

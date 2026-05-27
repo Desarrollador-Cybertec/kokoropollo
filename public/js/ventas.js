@@ -5,8 +5,9 @@ const CSRF = document.querySelector('meta[name="csrf-token"]').content;
 
 /* ── Estado global ── */
 let prodSeleccionado = null;  // { id, nombre, precio, stock, cat }
+let preparacionActual = null; // Asado | Broaster
 let corteActual      = null;  // { nombre, mult }
-let carrito          = [];    // [{ uid, id, nombre, corte, cantForm, cantInv, precio, subtotal }]
+let carrito          = [];    // [{ uid, id, nombre, corte, preparacion, cantForm, cantInv, precio, subtotal, costoUnit, costoSubtotal, margenSubtotal }]
 let pedidosHoy       = [];    // historial visual del día
 
 /* ── Helpers ── */
@@ -39,19 +40,32 @@ function seleccionarProducto(card) {
         stock:  parseInt(card.dataset.stock),
         cat:    card.dataset.cat,
     };
+    preparacionActual = null;
     corteActual = null;
+
+    const esPolloCrudo = prodSeleccionado.cat === 'Pollo Crudo';
+    const stockTxt = esPolloCrudo
+        ? `Stock: ${Math.floor(prodSeleccionado.stock / 4)} pollos (${prodSeleccionado.stock} cuartos)`
+        : `Stock: ${prodSeleccionado.stock} uds`;
+    const precioTxt = esPolloCrudo
+        ? `$${fmt(prodSeleccionado.precio * 4)} costo base/pollo`
+        : `$${fmt(prodSeleccionado.precio)} / unidad`;
 
     document.getElementById('cfgNombre').textContent = prodSeleccionado.nombre;
     document.getElementById('cfgPrecio').textContent =
-        '$' + fmt(prodSeleccionado.precio) + ' / unidad · Stock: ' + prodSeleccionado.stock + ' uds';
+        precioTxt + ' · ' + stockTxt;
     document.getElementById('cfgCantidad').value = 1;
     document.getElementById('cfgSubtotal').textContent = '$0';
     document.getElementById('alertaStockCfg').classList.add('hidden');
     document.getElementById('btnAgregar').disabled = true;
 
-    const esPollo   = prodSeleccionado.cat === 'Asado' || prodSeleccionado.cat === 'Broaster';
+    const esPollo   = esPolloCrudo;
+    const secPrep   = document.getElementById('seccionPreparacion');
     const secCorte  = document.getElementById('seccionCorte');
+    secPrep.classList.toggle('hidden', !esPollo);
     secCorte.classList.toggle('hidden', !esPollo);
+
+    document.querySelectorAll('#seccionPreparacion .corte-btn').forEach(b => b.classList.remove('activo'));
 
     if (!esPollo) {
         corteActual = { nombre: 'Unidad', mult: 1 };
@@ -65,17 +79,43 @@ function seleccionarProducto(card) {
 
 function deseleccionarProducto() {
     prodSeleccionado = null;
+    preparacionActual = null;
     corteActual      = null;
     document.querySelectorAll('.prod-card').forEach(c => c.classList.remove('activa'));
     document.querySelectorAll('.corte-btn').forEach(b => b.classList.remove('activo'));
     document.getElementById('configPanel').classList.add('hidden');
 }
 
+/* ── Seleccionar preparación ── */
+function seleccionarPreparacion(btn, tipo) {
+    if (!prodSeleccionado || prodSeleccionado.cat !== 'Pollo Crudo') return;
+    document.querySelectorAll('#seccionPreparacion .corte-btn').forEach(b => b.classList.remove('activo'));
+    btn.classList.add('activo');
+    preparacionActual = tipo;
+    corteActual = null;
+    document.querySelectorAll('#seccionCorte .corte-btn').forEach(b => b.classList.remove('activo'));
+    document.getElementById('cfgSubtotal').textContent = '$0';
+    document.getElementById('btnAgregar').disabled = true;
+}
+
 /* ── Seleccionar corte ── */
 function seleccionarCorte(btn, nombre) {
-    document.querySelectorAll('.corte-btn').forEach(b => b.classList.remove('activo'));
+    if (!prodSeleccionado) return;
+    if (prodSeleccionado.cat === 'Pollo Crudo' && !preparacionActual) return;
+
+    document.querySelectorAll('#seccionCorte .corte-btn').forEach(b => b.classList.remove('activo'));
     btn.classList.add('activo');
-    corteActual = { nombre, mult: parseInt(btn.dataset.mult) };
+    const mult     = parseInt(btn.dataset.mult);
+    const corteKey = btn.dataset.corteKey ?? null;
+
+    // Precio configurado para este corte (si existe y es > 0)
+    let precioCorte = null;
+    if (prodSeleccionado && corteKey && preparacionActual && PRECIOS_POLLO[preparacionActual]) {
+        const p = PRECIOS_POLLO[preparacionActual][corteKey];
+        if (p && p > 0) precioCorte = p;
+    }
+
+    corteActual = { nombre, mult, precioCorte };
     recalcSubtotal();
 }
 
@@ -84,7 +124,12 @@ function recalcSubtotal() {
     if (!prodSeleccionado || !corteActual) return;
     const cant    = Math.max(1, parseInt(document.getElementById('cfgCantidad').value) || 1);
     const cantInv = cant * corteActual.mult;
-    const sub     = prodSeleccionado.precio * cantInv;
+
+    // Precio configurado: sub = precioCorte × cant (no × cantInv)
+    // Sin config: sub = precio_por_cuarto × cantInv
+    const sub = corteActual.precioCorte
+        ? corteActual.precioCorte * cant
+        : prodSeleccionado.precio * cantInv;
 
     const reservado  = carrito.filter(i => i.id === prodSeleccionado.id)
                                .reduce((s, i) => s + i.cantInv, 0);
@@ -107,18 +152,41 @@ function agregarAlCarrito() {
     if (!prodSeleccionado || !corteActual) return;
     const cant    = Math.max(1, parseInt(document.getElementById('cfgCantidad').value) || 1);
     const cantInv = cant * corteActual.mult;
-    const sub     = prodSeleccionado.precio * cantInv;
-    const esPollo = prodSeleccionado.cat === 'Asado' || prodSeleccionado.cat === 'Broaster';
+    const esPollo = prodSeleccionado.cat === 'Pollo Crudo';
+    if (esPollo && !preparacionActual) return;
+
+    // Con precio config: sub = precioCorte × cant
+    // precio enviado al servidor = precioCorte / mult → total en server = (precioCorte/mult) × cantInv = precioCorte × cant ✓
+    // Sin config: comportamiento original precio_por_cuarto × cantInv
+    let sub, precio;
+    if (corteActual.precioCorte) {
+        sub    = corteActual.precioCorte * cant;
+        precio = corteActual.precioCorte / corteActual.mult;
+    } else {
+        sub    = prodSeleccionado.precio * cantInv;
+        precio = prodSeleccionado.precio;
+    }
+
+    const costoUnit = prodSeleccionado.precio * corteActual.mult;
+    const costoSubtotal = costoUnit * cant;
+    const margenSubtotal = sub - costoSubtotal;
+    const nombreVenta = esPollo
+        ? `${preparacionActual} - ${corteActual.nombre}`
+        : prodSeleccionado.nombre;
 
     carrito.push({
         uid:      Math.random().toString(36).slice(2, 8),
         id:       prodSeleccionado.id,
-        nombre:   prodSeleccionado.nombre,
+        nombre:   nombreVenta,
         corte:    corteActual.nombre,
+        preparacion: preparacionActual,
         cantForm: cant,
         cantInv:  cantInv,
-        precio:   prodSeleccionado.precio,
+        precio:   precio,
         subtotal: sub,
+        costoUnit,
+        costoSubtotal,
+        margenSubtotal,
     });
 
     deseleccionarProducto();
@@ -132,7 +200,7 @@ function agregarAlCarrito() {
 
 /* ── Acompañamientos rápidos ── */
 const CAT_EMOJI = {
-    Asado:'🍗', Broaster:'🍳', Papas:'🥔',
+    'Pollo Crudo':'🐔', Papas:'🥔',
     'Acompañamientos':'🍌', Salsas:'🫙', Bebidas:'🥤', Otros:'📦',
 };
 let acompSeleccionados = new Set();
@@ -191,10 +259,14 @@ function agregarAcompSeleccionados() {
             id:       parseInt(btn.dataset.id),
             nombre:   btn.dataset.nombre,
             corte:    'Unidad',
+            preparacion: null,
             cantForm: 1,
             cantInv:  1,
             precio:   parseFloat(btn.dataset.precio),
             subtotal: parseFloat(btn.dataset.precio),
+            costoUnit: parseFloat(btn.dataset.precio),
+            costoSubtotal: parseFloat(btn.dataset.precio),
+            margenSubtotal: 0,
         });
     });
     cerrarAcomp();
@@ -210,6 +282,8 @@ function cerrarAcomp() {
 function renderCarrito() {
     const lista = document.getElementById('listaCarrito');
     const total = carrito.reduce((s, i) => s + i.subtotal, 0);
+    const totalCosto = carrito.reduce((s, i) => s + (i.costoSubtotal || 0), 0);
+    const totalMargen = total - totalCosto;
 
     if (carrito.length === 0) {
         document.getElementById('seccionCarrito').classList.add('hidden');
@@ -220,15 +294,22 @@ function renderCarrito() {
     document.getElementById('cantItems').textContent =
         '(' + carrito.length + ' ítem' + (carrito.length > 1 ? 's' : '') + ')';
     document.getElementById('totalPedido').textContent = '$' + fmt(total);
+    document.getElementById('resumenVenta').textContent = '$' + fmt(total);
+    document.getElementById('resumenCosto').textContent = '$' + fmt(totalCosto);
+    document.getElementById('resumenMargen').textContent = '$' + fmt(totalMargen);
 
     lista.innerHTML = carrito.map(item => `
         <div class="carrito-item">
             <div class="flex-1 min-w-0">
                 <p class="font-bold text-white text-base leading-tight">${item.nombre}</p>
                 <p class="text-sm" style="color:#9ca3af;">
+                    ${item.preparacion ? item.preparacion + ' · ' : ''}
                     ${item.corte !== 'Unidad' ? item.corte + ' · ' : ''}
                     ${item.cantForm} × $${fmt(item.precio)}
                     ${item.cantInv > item.cantForm ? '(descuenta ' + item.cantInv + ' uds)' : ''}
+                </p>
+                <p class="text-xs" style="color:#cbd5e1;">
+                    Costo: $${fmt(item.costoSubtotal || 0)} · Margen: $${fmt(item.margenSubtotal || 0)}
                 </p>
             </div>
             <span class="font-black text-lg whitespace-nowrap" style="color:var(--oro);">

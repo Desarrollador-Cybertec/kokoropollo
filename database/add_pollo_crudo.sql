@@ -1,6 +1,7 @@
--- Migración v2: normalizar categorías del inventario al modelo actual
--- Convierte categorías antiguas de pollo en materia prima unificada
+-- Migración: modelo de materia prima unificada para pollo
+-- Ejecutar una sola vez sobre la BD kokoropollo
 
+-- Cualquier categoría de pollo anterior pasa a "Pollo Crudo"
 UPDATE `inventario` SET `categoria` = 'Pollo Crudo' WHERE `categoria` IN ('Pollo', 'Asado', 'Broaster');
 
 ALTER TABLE `inventario`

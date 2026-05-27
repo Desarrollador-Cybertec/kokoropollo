@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Controllers\{
     AuthController,
+    ConfigController,
     DashboardController,
     InventarioController,
     CajaController,
@@ -37,6 +38,10 @@ $router->get('/historial', [HistorialController::class, 'index']);
 // ── Ventas ─────────────────────────────────────────────────
 $router->get('/ventas',        [VentasController::class, 'index']);
 $router->post('/ventas/store', [VentasController::class, 'store']);
+
+// ── Configuración (solo Administrador) ────────────────────
+$router->get('/config',  [ConfigController::class, 'index']);
+$router->post('/config', [ConfigController::class, 'save']);
 
 // ── Usuarios (solo Administrador) ──────────────────────────
 $router->get('/usuarios',           [UsuariosController::class, 'index']);

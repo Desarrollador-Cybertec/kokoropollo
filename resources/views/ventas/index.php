@@ -2,6 +2,13 @@
 declare(strict_types=1);
 use App\Core\View;
 
+$productos = (isset($productos) && is_array($productos)) ? $productos : [];
+$productosJson = isset($productosJson) ? (string) $productosJson : '[]';
+$categoriasConfig = (isset($categoriasConfig) && is_array($categoriasConfig)) ? $categoriasConfig : [];
+$totalDia = isset($totalDia) ? (float) $totalDia : 0.0;
+$dashboardUrl = isset($dashboardUrl) ? (string) $dashboardUrl : '/dashboard';
+$preciosPolloJson = isset($preciosPolloJson) ? (string) $preciosPolloJson : '{"Asado":{"cuarto":0,"medio":0,"entero":0},"Broaster":{"cuarto":0,"medio":0,"entero":0}}';
+
 $pageTitle = 'Ventas — Kokoro Pollo';
 require dirname(__DIR__) . '/partials/head.php';
 ?>
@@ -147,10 +154,17 @@ body { background-color: var(--rojo-deep); min-height: 100vh; }
                         <?= $categoriasConfig[$p['categoria']]['emoji'] ?? '📦' ?>
                     </div>
                     <div class="prod-nom"><?= View::escape($p['articulo']) ?></div>
-                    <div class="prod-prec">$<?= number_format((float)$p['valor'], 0, ',', '.') ?></div>
-                    <div class="prod-stk <?= (int)$p['cantidad'] <= 5 ? 'text-red-400' : 'text-green-400' ?>">
-                        <?= (int)$p['cantidad'] ?> disponibles
-                    </div>
+                    <?php if ($p['categoria'] === 'Pollo Crudo'): ?>
+                        <div class="prod-prec">Costo base: $<?= number_format((float)$p['valor'] * 4, 0, ',', '.') ?>/pollo</div>
+                        <div class="prod-stk <?= (int)$p['cantidad'] <= 4 ? 'text-red-400' : 'text-green-400' ?>">
+                            <?= intdiv((int)$p['cantidad'], 4) ?> pollos (<?= (int)$p['cantidad'] ?> cuartos)
+                        </div>
+                    <?php else: ?>
+                        <div class="prod-prec">$<?= number_format((float)$p['valor'], 0, ',', '.') ?></div>
+                        <div class="prod-stk <?= (int)$p['cantidad'] <= 5 ? 'text-red-400' : 'text-green-400' ?>">
+                            <?= (int)$p['cantidad'] ?> disponibles
+                        </div>
+                    <?php endif; ?>
                 </div>
             <?php endforeach; ?>
             <?php if (empty($productos)): ?>
@@ -161,8 +175,8 @@ body { background-color: var(--rojo-deep); min-height: 100vh; }
         </div>
     </div>
 
-    <!-- ══════════════════════════════════════════
-         BLOQUE 2 — Configurar (corte + cantidad)
+        <!-- ══════════════════════════════════════════
+            BLOQUE 2 — Configurar (preparación + corte + cantidad)
     ══════════════════════════════════════════ -->
     <div id="configPanel" class="config-panel hidden">
         <div class="flex justify-between items-start mb-4 flex-wrap gap-3">
@@ -177,29 +191,46 @@ body { background-color: var(--rojo-deep); min-height: 100vh; }
             </button>
         </div>
 
-        <!-- Corte (solo para Asado / Broaster) -->
+        <!-- Preparación (solo para Pollo Crudo) -->
+        <div id="seccionPreparacion" class="hidden mb-5">
+            <p class="text-sm font-bold mb-3" style="color:#9ca3af;">¿Cómo lo quiere?</p>
+            <div class="grid grid-cols-2 gap-3 sm:max-w-sm">
+                <button type="button" class="corte-btn" data-prep="Asado" onclick="seleccionarPreparacion(this, 'Asado')">
+                    <span class="ce">🍗</span>
+                    <span>Asado</span>
+                    <span class="cs">a la brasa</span>
+                </button>
+                <button type="button" class="corte-btn" data-prep="Broaster" onclick="seleccionarPreparacion(this, 'Broaster')">
+                    <span class="ce">🍳</span>
+                    <span>Broaster</span>
+                    <span class="cs">frito crocante</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Corte (solo para Pollo Crudo) -->
         <div id="seccionCorte" class="hidden mb-5">
             <p class="text-sm font-bold mb-3" style="color:#9ca3af;">¿Cuánto lleva?</p>
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <button type="button" class="corte-btn" data-mult="1" onclick="seleccionarCorte(this,'1/4 Pierna-Pernil')">
+                <button type="button" class="corte-btn" data-mult="1" data-corte-key="cuarto" onclick="seleccionarCorte(this,'1/4 Pierna-Pernil')">
                     <span class="ce">🍗</span>
                     <span>¼ Pierna</span>
                     <span class="cs">Pierna + Pernil</span>
                     <span class="cs">× 1 ud</span>
                 </button>
-                <button type="button" class="corte-btn" data-mult="1" onclick="seleccionarCorte(this,'1/4 Pechuga-Ala')">
+                <button type="button" class="corte-btn" data-mult="1" data-corte-key="cuarto" onclick="seleccionarCorte(this,'1/4 Pechuga-Ala')">
                     <span class="ce">🍗</span>
                     <span>¼ Pechuga</span>
                     <span class="cs">Pechuga + Ala</span>
                     <span class="cs">× 1 ud</span>
                 </button>
-                <button type="button" class="corte-btn" data-mult="2" onclick="seleccionarCorte(this,'Medio Pollo')">
+                <button type="button" class="corte-btn" data-mult="2" data-corte-key="medio" onclick="seleccionarCorte(this,'Medio Pollo')">
                     <span class="ce">🍗🍗</span>
                     <span>Medio Pollo</span>
                     <span class="cs">2 cuartos</span>
                     <span class="cs">× 2 uds</span>
                 </button>
-                <button type="button" class="corte-btn" data-mult="4" onclick="seleccionarCorte(this,'Pollo Entero')">
+                <button type="button" class="corte-btn" data-mult="4" data-corte-key="entero" onclick="seleccionarCorte(this,'Pollo Entero')">
                     <span class="ce">🐔</span>
                     <span>Pollo Entero</span>
                     <span class="cs">4 cuartos</span>
@@ -277,6 +308,21 @@ body { background-color: var(--rojo-deep); min-height: 100vh; }
             <span id="totalPedido" class="font-black text-4xl" style="color:var(--oro);">$0</span>
         </div>
 
+        <div class="grid sm:grid-cols-3 gap-2 mb-4">
+            <div class="rounded-xl px-4 py-3" style="background-color:#13331f; border:1px solid #1d6b3a;">
+                <p class="text-xs font-bold uppercase" style="color:#9ad9b0;">Venta</p>
+                <p id="resumenVenta" class="text-xl font-black" style="color:#9ad9b0;">$0</p>
+            </div>
+            <div class="rounded-xl px-4 py-3" style="background-color:#3a2a0f; border:1px solid #8a6b25;">
+                <p class="text-xs font-bold uppercase" style="color:#f7d58e;">Costo</p>
+                <p id="resumenCosto" class="text-xl font-black" style="color:#f7d58e;">$0</p>
+            </div>
+            <div class="rounded-xl px-4 py-3" style="background-color:#142f4a; border:1px solid #2563eb;">
+                <p class="text-xs font-bold uppercase" style="color:#93c5fd;">Margen</p>
+                <p id="resumenMargen" class="text-xl font-black" style="color:#93c5fd;">$0</p>
+            </div>
+        </div>
+
         <div class="flex flex-wrap gap-3">
             <button id="btnRegistrar" onclick="registrarPedido()"
                     class="flex-1 font-black text-xl py-5 rounded-2xl shadow-xl uppercase tracking-wide btn-green"
@@ -334,8 +380,9 @@ body { background-color: var(--rojo-deep); min-height: 100vh; }
 </div>
 
 <script>
-const PRODUCTOS    = <?= $productosJson ?>;
-let totalDiaAcum   = <?= (float)$totalDia ?>;
+const PRODUCTOS     = <?= $productosJson ?>;
+const PRECIOS_POLLO = <?= $preciosPolloJson ?>;
+let totalDiaAcum    = <?= (float)$totalDia ?>;
 </script>
 <script src="/js/ventas.js"></script>
 
