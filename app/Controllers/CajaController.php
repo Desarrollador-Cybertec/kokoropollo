@@ -15,11 +15,13 @@ final class CajaController
     {
         AuthMiddleware::handle();
 
-        $total        = (new Caja())->getTotal();
-        $rol          = Rol::tryFrom(Session::get('rol') ?? '');
-        $dashboardUrl = $rol?->dashboard() ?? '/dashboard';
+        $hoy           = date('Y-m-d');
+        $total         = (new Caja())->getTotal();
+        $movimientosHoy = (new HistorialCaja())->filter($hoy, $hoy);
+        $rol           = Rol::tryFrom(Session::get('rol') ?? '');
+        $dashboardUrl  = $rol?->dashboard() ?? '/dashboard';
 
-        View::render('caja/index', compact('total', 'dashboardUrl'));
+        View::render('caja/index', compact('total', 'movimientosHoy', 'dashboardUrl'));
     }
 
     public function process(Request $request): void
@@ -48,12 +50,14 @@ final class CajaController
         };
 
         if ($tipo === 'retiro' && $valor > $total) {
+            $hoy          = date('Y-m-d');
             $rol          = Rol::tryFrom(Session::get('rol') ?? '');
             $dashboardUrl = $rol?->dashboard() ?? '/dashboard';
             View::render('caja/index', [
-                'total'        => $total,
-                'dashboardUrl' => $dashboardUrl,
-                'error'        => 'No puede retirar más de lo que hay en caja.',
+                'total'          => $total,
+                'movimientosHoy' => (new HistorialCaja())->filter($hoy, $hoy),
+                'dashboardUrl'   => $dashboardUrl,
+                'error'          => 'No puede retirar más de lo que hay en caja.',
             ]);
             return;
         }

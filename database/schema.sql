@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS `usuarios` (
 CREATE TABLE IF NOT EXISTS `inventario` (
     `id`          INT UNSIGNED    NOT NULL AUTO_INCREMENT,
     `articulo`    VARCHAR(150)    NOT NULL,
+    `categoria`   ENUM('Pollo','Papas','Salsas','Bebidas','Otros')
+                                  NOT NULL DEFAULT 'Otros',
     `cantidad`    INT UNSIGNED    NOT NULL DEFAULT 0,
     `valor`       DECIMAL(12,2)   NOT NULL DEFAULT 0.00,
     `creado`      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -70,6 +72,7 @@ CREATE TABLE IF NOT EXISTS `historial_caja` (
 -- ─────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS `ventas` (
     `id`              INT UNSIGNED    NOT NULL AUTO_INCREMENT,
+    `orden_id`        VARCHAR(12)     NOT NULL DEFAULT '',
     `inventario_id`   INT UNSIGNED    NOT NULL,
     `cantidad`        INT UNSIGNED    NOT NULL DEFAULT 1,
     `precio_unitario` DECIMAL(12,2)   NOT NULL,
@@ -78,6 +81,7 @@ CREATE TABLE IF NOT EXISTS `ventas` (
     `fecha`           DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     KEY `idx_fecha` (`fecha`),
+    KEY `idx_orden` (`orden_id`),
     KEY `idx_inventario` (`inventario_id`),
     CONSTRAINT `fk_ventas_inventario`
         FOREIGN KEY (`inventario_id`)

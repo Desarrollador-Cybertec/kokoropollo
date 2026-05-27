@@ -36,15 +36,16 @@ final class InventarioController
             Response::redirect('/inventario');
         }
 
-        $articulo = trim($request->post('articulo', ''));
-        $cantidad = max(0, (int) $request->post('cantidad', 0));
-        $valor    = max(0.0, (float) $request->post('valor', 0));
+        $articulo  = trim($request->post('articulo', ''));
+        $categoria = $request->post('categoria', 'Otros');
+        $cantidad  = max(0, (int) $request->post('cantidad', 0));
+        $valor     = max(0.0, (float) $request->post('valor', 0));
 
-        if ($articulo === '') {
+        if ($articulo === '' || !in_array($categoria, Inventario::categorias(), strict: true)) {
             Response::redirect('/inventario');
         }
 
-        (new Inventario())->create($articulo, $cantidad, $valor);
+        (new Inventario())->create($articulo, $categoria, $cantidad, $valor);
         Response::redirect('/inventario');
     }
 
@@ -56,13 +57,14 @@ final class InventarioController
             Response::redirect('/inventario');
         }
 
-        $id       = (int) $request->post('id', 0);
-        $articulo = trim($request->post('articulo', ''));
-        $cantidad = max(0, (int) $request->post('cantidad', 0));
-        $valor    = max(0.0, (float) $request->post('valor', 0));
+        $id        = (int) $request->post('id', 0);
+        $articulo  = trim($request->post('articulo', ''));
+        $categoria = $request->post('categoria', 'Otros');
+        $cantidad  = max(0, (int) $request->post('cantidad', 0));
+        $valor     = max(0.0, (float) $request->post('valor', 0));
 
-        if ($id > 0 && $articulo !== '') {
-            (new Inventario())->update($id, $articulo, $cantidad, $valor);
+        if ($id > 0 && $articulo !== '' && in_array($categoria, Inventario::categorias(), strict: true)) {
+            (new Inventario())->update($id, $articulo, $categoria, $cantidad, $valor);
         }
 
         Response::redirect('/inventario');

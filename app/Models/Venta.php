@@ -9,19 +9,42 @@ use App\Core\Database;
 final class Venta
 {
     public function store(
+        string $ordenId,
         int    $inventarioId,
         int    $cantidad,
         float  $precioUnitario,
         float  $total,
         string $usuario,
     ): int {
-        $pdo  = Database::getInstance();
-        $stmt = $pdo->prepare(
-            'INSERT INTO ventas (inventario_id, cantidad, precio_unitario, total, usuario, fecha)
-             VALUES (?, ?, ?, ?, ?, NOW())'
-        );
-        $stmt->execute([$inventarioId, $cantidad, $precioUnitario, $total, $usuario]);
-        return (int) $pdo->lastInsertId();
+        $pdo = Database::getInstance();
+        $pdo->beginTransaction();
+
+        try {
+            $check = $pdo->prepare('SELECT cantidad FROM inventario WHERE id = ? FOR UPDATE');
+            $check->execute([$inventarioId]);
+            $stock = (int) $check->fetchColumn();
+
+            if ($stock < $cantidad) {
+                $pdo->rollBack();
+                throw new \RuntimeException("Stock insuficiente. Disponible: {$stock}.");
+            }
+
+            $pdo->prepare('UPDATE inventario SET cantidad = cantidad - ? WHERE id = ?')
+                ->execute([$cantidad, $inventarioId]);
+
+            $stmt = $pdo->prepare(
+                'INSERT INTO ventas (orden_id, inventario_id, cantidad, precio_unitario, total, usuario, fecha)
+                 VALUES (?, ?, ?, ?, ?, ?, NOW())'
+            );
+            $stmt->execute([$ordenId, $inventarioId, $cantidad, $precioUnitario, $total, $usuario]);
+            $id = (int) $pdo->lastInsertId();
+
+            $pdo->commit();
+            return $id;
+        } catch (\Exception $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
     }
 
     public function sumToday(): float
@@ -36,11 +59,12 @@ final class Venta
     public function allToday(): array
     {
         $stmt = Database::getInstance()->prepare(
-            'SELECT v.id, i.articulo, v.cantidad, v.precio_unitario, v.total, v.fecha
+            'SELECT v.id, v.orden_id, i.articulo, i.categoria, v.cantidad,
+                    v.precio_unitario, v.total, v.fecha
              FROM ventas v
              JOIN inventario i ON i.id = v.inventario_id
              WHERE DATE(v.fecha) = CURDATE()
-             ORDER BY v.fecha DESC'
+             ORDER BY v.orden_id DESC, v.id ASC'
         );
         $stmt->execute();
         return $stmt->fetchAll();

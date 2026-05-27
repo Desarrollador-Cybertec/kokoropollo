@@ -11,7 +11,7 @@ final class Inventario
     public function all(): array
     {
         $stmt = Database::getInstance()->query(
-            'SELECT id, articulo, cantidad, valor FROM inventario ORDER BY articulo ASC'
+            'SELECT id, articulo, categoria, cantidad, valor FROM inventario ORDER BY categoria, articulo ASC'
         );
         return $stmt->fetchAll();
     }
@@ -19,8 +19,8 @@ final class Inventario
     public function search(string $term): array
     {
         $stmt = Database::getInstance()->prepare(
-            'SELECT id, articulo, cantidad, valor FROM inventario
-             WHERE articulo LIKE ? ORDER BY articulo ASC'
+            'SELECT id, articulo, categoria, cantidad, valor FROM inventario
+             WHERE articulo LIKE ? ORDER BY categoria, articulo ASC'
         );
         $stmt->execute(['%' . $term . '%']);
         return $stmt->fetchAll();
@@ -29,26 +29,26 @@ final class Inventario
     public function find(int $id): array|false
     {
         $stmt = Database::getInstance()->prepare(
-            'SELECT id, articulo, cantidad, valor FROM inventario WHERE id = ?'
+            'SELECT id, articulo, categoria, cantidad, valor FROM inventario WHERE id = ?'
         );
         $stmt->execute([$id]);
         return $stmt->fetch();
     }
 
-    public function create(string $articulo, int $cantidad, float $valor): void
+    public function create(string $articulo, string $categoria, int $cantidad, float $valor): void
     {
         $stmt = Database::getInstance()->prepare(
-            'INSERT INTO inventario (articulo, cantidad, valor) VALUES (?, ?, ?)'
+            'INSERT INTO inventario (articulo, categoria, cantidad, valor) VALUES (?, ?, ?, ?)'
         );
-        $stmt->execute([$articulo, $cantidad, $valor]);
+        $stmt->execute([$articulo, $categoria, $cantidad, $valor]);
     }
 
-    public function update(int $id, string $articulo, int $cantidad, float $valor): void
+    public function update(int $id, string $articulo, string $categoria, int $cantidad, float $valor): void
     {
         $stmt = Database::getInstance()->prepare(
-            'UPDATE inventario SET articulo = ?, cantidad = ?, valor = ? WHERE id = ?'
+            'UPDATE inventario SET articulo = ?, categoria = ?, cantidad = ?, valor = ? WHERE id = ?'
         );
-        $stmt->execute([$articulo, $cantidad, $valor, $id]);
+        $stmt->execute([$articulo, $categoria, $cantidad, $valor, $id]);
     }
 
     public function delete(int $id): void
@@ -62,8 +62,25 @@ final class Inventario
     public function forSelect(): array
     {
         $stmt = Database::getInstance()->query(
-            'SELECT id, articulo, valor FROM inventario ORDER BY articulo ASC'
+            'SELECT id, articulo, categoria, cantidad, valor FROM inventario
+             WHERE cantidad > 0 ORDER BY categoria, articulo ASC'
         );
         return $stmt->fetchAll();
+    }
+
+    public function forSelectGrouped(): array
+    {
+        $rows = $this->forSelect();
+        $grouped = [];
+        foreach ($rows as $row) {
+            $grouped[$row['categoria']][] = $row;
+        }
+        return $grouped;
+    }
+
+    /** Valores válidos del ENUM categoria */
+    public static function categorias(): array
+    {
+        return ['Asado', 'Broaster', 'Papas', 'Acompañamientos', 'Salsas', 'Bebidas', 'Otros'];
     }
 }

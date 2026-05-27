@@ -34,6 +34,7 @@ final class VentasController
         }
 
         $data           = $request->json() ?? [];
+        $ordenId        = substr(preg_replace('/[^a-zA-Z0-9]/', '', (string) ($data['orden_id'] ?? '')), 0, 12);
         $inventarioId   = (int) ($data['inventario_id']   ?? 0);
         $cantidad       = (int) ($data['cantidad']         ?? 0);
         $precioUnitario = (float) ($data['precio_unitario'] ?? 0);
@@ -45,20 +46,25 @@ final class VentasController
         $total   = $precioUnitario * $cantidad;
         $usuario = Session::get('usuario', '');
 
-        $ventaId = (new Venta())->store(
-            inventarioId:   $inventarioId,
-            cantidad:       $cantidad,
-            precioUnitario: $precioUnitario,
-            total:          $total,
-            usuario:        $usuario,
-        );
+        try {
+            $ventaId = (new Venta())->store(
+                ordenId:        $ordenId,
+                inventarioId:   $inventarioId,
+                cantidad:       $cantidad,
+                precioUnitario: $precioUnitario,
+                total:          $total,
+                usuario:        $usuario,
+            );
 
-        Logger::getInstance()->info('Venta registrada', [
-            'id'      => $ventaId,
-            'total'   => $total,
-            'usuario' => $usuario,
-        ]);
+            Logger::getInstance()->info('Venta registrada', [
+                'id'      => $ventaId,
+                'total'   => $total,
+                'usuario' => $usuario,
+            ]);
 
-        Response::json(['status' => 'ok', 'id' => $ventaId, 'total' => $total]);
+            Response::json(['status' => 'ok', 'id' => $ventaId, 'total' => $total]);
+        } catch (\RuntimeException $e) {
+            Response::json(['status' => 'error', 'mensaje' => $e->getMessage()], code: 422);
+        }
     }
 }
