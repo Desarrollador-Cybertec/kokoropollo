@@ -1,14 +1,109 @@
-/* Kokoro Pollo — overrides mínimos post-Tailwind */
+/* ─── Kokoro Pollo — stylesheet ─────────────────────────── */
 
-/* Scrollbar personalizado en tablas con scroll */
+/* ── Scrollbar en tablas con scroll ── */
 .overflow-y-auto::-webkit-scrollbar { width: 6px; }
 .overflow-y-auto::-webkit-scrollbar-track { background: transparent; }
 .overflow-y-auto::-webkit-scrollbar-thumb { background-color: #5a1a1a; border-radius: 10px; }
 
-/* border-3 (Tailwind CDN no lo genera por defecto) */
+/* ── Tailwind CDN no genera border-3 por defecto ── */
 .border-3 { border-width: 3px; }
 
-/* Impresión: fondo blanco y texto negro */
+/* ── Botones ── */
+.btn-primary {
+    background-color: var(--oro);
+    color: var(--rojo-dark);
+    transition: background-color .15s;
+    cursor: pointer;
+}
+.btn-primary:hover { background-color: var(--oro-light); }
+
+.btn-danger {
+    background-color: #b91c1c;
+    color: white;
+    transition: background-color .15s;
+    cursor: pointer;
+}
+.btn-danger:hover { background-color: #ef4444; }
+
+.btn-secondary {
+    background-color: var(--rojo-mid);
+    color: white;
+    transition: background-color .15s;
+    cursor: pointer;
+}
+.btn-secondary:hover { background-color: var(--rojo-hover); }
+
+.btn-green {
+    background-color: #16a34a;
+    color: white;
+    transition: background-color .15s;
+    cursor: pointer;
+}
+.btn-green:hover { background-color: #15803d; }
+.btn-green:disabled { opacity: .4; cursor: not-allowed; }
+.btn-green:disabled:hover { background-color: #16a34a; }
+
+.btn-blue {
+    background-color: #1d4ed8;
+    color: white;
+    transition: background-color .15s;
+    cursor: pointer;
+}
+.btn-blue:hover { background-color: #1e40af; }
+
+/* ── Inputs oscuros ── */
+.input-dark {
+    background-color: var(--rojo-deep);
+    border: 2px solid var(--rojo-mid);
+    color: white;
+    transition: border-color .15s;
+    outline: none;
+}
+.input-dark:focus { border-color: var(--oro); }
+.input-dark::placeholder { color: #6b7280; }
+
+.input-green {
+    background-color: var(--rojo-deep);
+    border: 2px solid var(--rojo-mid);
+    color: white;
+    transition: border-color .15s;
+    outline: none;
+}
+.input-green:focus { border-color: #4ade80; }
+.input-green::placeholder { color: #6b7280; }
+
+.input-red {
+    background-color: var(--rojo-deep);
+    border: 2px solid var(--rojo-mid);
+    color: white;
+    transition: border-color .15s;
+    outline: none;
+}
+.input-red:focus { border-color: #ef4444; }
+.input-red::placeholder { color: #6b7280; }
+
+/* ── Campos de login (borde en el contenedor padre) ── */
+.field-dark {
+    background-color: #1a1a1a;
+    border: 2px solid #5a1a1a;
+    transition: border-color .15s;
+}
+.field-dark:focus-within { border-color: var(--oro); }
+
+/* ── Filas de tabla con hover ── */
+.tr-dark { transition: background-color .12s; }
+.tr-dark:hover { background-color: var(--rojo-hover); }
+
+/* ── Toasts auto-dismiss ── */
+.toast-item {
+    animation: toast-in .25s ease;
+}
+@keyframes toast-in {
+    from { opacity: 0; transform: translateX(40px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Impresión ── */
 @media print {
     body { background: white !important; color: black !important; }
     button, a { display: none !important; }

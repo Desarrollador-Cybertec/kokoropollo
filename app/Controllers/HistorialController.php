@@ -16,11 +16,26 @@ final class HistorialController
 
         $desde     = $request->get('desde', '');
         $hasta     = $request->get('hasta', '');
-        $registros = (new HistorialCaja())->filter(
-            desde: $desde ?: null,
-            hasta: $hasta ?: null,
-        );
+        $pagina    = max(1, (int) $request->get('pagina', 1));
+        $porPagina = 50;
 
-        View::render('historial/index', compact('registros', 'desde', 'hasta'));
+        $model        = new HistorialCaja();
+        $total        = $model->count($desde ?: null, $hasta ?: null);
+        $totalPaginas = max(1, (int) ceil($total / $porPagina));
+        $pagina       = min($pagina, $totalPaginas);
+        $registros    = $model->filterPaginated($desde ?: null, $hasta ?: null, $pagina, $porPagina);
+
+        $totalIngresos = 0.0;
+        $totalRetiros  = 0.0;
+        foreach ($registros as $r) {
+            if ($r['tipo'] === 'ingreso') $totalIngresos += (float) $r['valor'];
+            else                          $totalRetiros  += (float) $r['valor'];
+        }
+
+        View::render('historial/index', compact(
+            'registros', 'desde', 'hasta',
+            'totalIngresos', 'totalRetiros',
+            'pagina', 'totalPaginas', 'total'
+        ));
     }
 }

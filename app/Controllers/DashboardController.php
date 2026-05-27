@@ -4,23 +4,21 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use App\Core\{Request, View};
+use App\Core\{Request, Session, View};
 use App\Enums\Rol;
-use App\Middleware\{AuthMiddleware, RoleMiddleware};
+use App\Middleware\AuthMiddleware;
+use App\Models\Venta;
 
 final class DashboardController
 {
-    public function admin(Request $request): void
+    public function index(Request $request): void
     {
-        RoleMiddleware::require(Rol::Administrador);
+        AuthMiddleware::handle();
 
-        View::render('dashboard/admin');
-    }
+        $rol      = Rol::tryFrom(Session::get('rol') ?? '');
+        $esAdmin  = $rol === Rol::Administrador;
+        $totalDia = (new Venta())->sumToday();
 
-    public function employee(Request $request): void
-    {
-        RoleMiddleware::require(Rol::Empleado);
-
-        View::render('dashboard/empleado');
+        View::render('dashboard/index', compact('esAdmin', 'totalDia'));
     }
 }

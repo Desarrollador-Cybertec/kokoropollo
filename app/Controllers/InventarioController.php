@@ -46,6 +46,7 @@ final class InventarioController
         }
 
         (new Inventario())->create($articulo, $categoria, $cantidad, $valor);
+        Session::flash('exito', "Artículo \"{$articulo}\" agregado correctamente.");
         Response::redirect('/inventario');
     }
 
@@ -65,6 +66,7 @@ final class InventarioController
 
         if ($id > 0 && $articulo !== '' && in_array($categoria, Inventario::categorias(), strict: true)) {
             (new Inventario())->update($id, $articulo, $categoria, $cantidad, $valor);
+            Session::flash('exito', "Artículo \"{$articulo}\" actualizado correctamente.");
         }
 
         Response::redirect('/inventario');
@@ -81,6 +83,7 @@ final class InventarioController
         $id = (int) $request->post('id', 0);
         if ($id > 0) {
             (new Inventario())->delete($id);
+            Session::flash('exito', 'Artículo eliminado correctamente.');
         }
 
         Response::redirect('/inventario');

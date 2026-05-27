@@ -4,3 +4,4 @@ storage/logs/*.log
 *.zip
 backups/
 .php-ini
+resultado-gobuster.txt

@@ -11,16 +11,30 @@ use App\Models\{Inventario, Venta};
 
 final class VentasController
 {
+    private const CATEGORIAS_CONFIG = [
+        'Asado'           => ['emoji' => '🍗', 'label' => 'Asado'],
+        'Broaster'        => ['emoji' => '🍳', 'label' => 'Broaster'],
+        'Papas'           => ['emoji' => '🥔', 'label' => 'Papas'],
+        'Acompañamientos' => ['emoji' => '🍌', 'label' => 'Acompañ.'],
+        'Salsas'          => ['emoji' => '🫙', 'label' => 'Salsas'],
+        'Bebidas'         => ['emoji' => '🥤', 'label' => 'Bebidas'],
+        'Otros'           => ['emoji' => '📦', 'label' => 'Otros'],
+    ];
+
     public function index(Request $request): void
     {
         AuthMiddleware::handle();
 
-        $productos    = (new Inventario())->forSelect();
-        $totalDia     = (new Venta())->sumToday();
-        $rol          = Rol::tryFrom(Session::get('rol') ?? '');
-        $dashboardUrl = $rol?->dashboard() ?? '/dashboard';
+        $productos        = (new Inventario())->forSelect();
+        $productosJson    = json_encode(array_values($productos), JSON_UNESCAPED_UNICODE);
+        $totalDia         = (new Venta())->sumToday();
+        $rol              = Rol::tryFrom(Session::get('rol') ?? '');
+        $dashboardUrl     = $rol?->dashboard() ?? '/dashboard';
+        $categoriasConfig = self::CATEGORIAS_CONFIG;
 
-        View::render('ventas/index', compact('productos', 'totalDia', 'dashboardUrl'));
+        View::render('ventas/index', compact(
+            'productos', 'productosJson', 'totalDia', 'dashboardUrl', 'categoriasConfig'
+        ));
     }
 
     public function store(Request $request): void
@@ -33,15 +47,12 @@ final class VentasController
             Response::json(['status' => 'error', 'mensaje' => 'Token de seguridad inválido.'], code: 403);
         }
 
-        $data           = $request->json() ?? [];
-        $ordenId        = substr(preg_replace('/[^a-zA-Z0-9]/', '', (string) ($data['orden_id'] ?? '')), 0, 12);
-        $inventarioId   = (int) ($data['inventario_id']   ?? 0);
-        $cantidad       = (int) ($data['cantidad']         ?? 0);
-        $precioUnitario = (float) ($data['precio_unitario'] ?? 0);
-
-        if ($inventarioId <= 0 || $cantidad <= 0 || $precioUnitario <= 0) {
-            Response::json(['status' => 'error', 'mensaje' => 'Datos inválidos.'], code: 422);
-        }
+        [
+            'ordenId'        => $ordenId,
+            'inventarioId'   => $inventarioId,
+            'cantidad'       => $cantidad,
+            'precioUnitario' => $precioUnitario,
+        ] = $this->validateVentaInput($request->json() ?? []);
 
         $total   = $precioUnitario * $cantidad;
         $usuario = Session::get('usuario', '');
@@ -66,5 +77,19 @@ final class VentasController
         } catch (\RuntimeException $e) {
             Response::json(['status' => 'error', 'mensaje' => $e->getMessage()], code: 422);
         }
+    }
+
+    private function validateVentaInput(array $data): array
+    {
+        $ordenId        = substr(preg_replace('/[^a-zA-Z0-9]/', '', (string) ($data['orden_id'] ?? '')), 0, 12);
+        $inventarioId   = (int) ($data['inventario_id']   ?? 0);
+        $cantidad       = (int) ($data['cantidad']         ?? 0);
+        $precioUnitario = (float) ($data['precio_unitario'] ?? 0);
+
+        if ($inventarioId <= 0 || $cantidad <= 0 || $precioUnitario <= 0) {
+            Response::json(['status' => 'error', 'mensaje' => 'Datos inválidos.'], code: 422);
+        }
+
+        return compact('ordenId', 'inventarioId', 'cantidad', 'precioUnitario');
     }
 }

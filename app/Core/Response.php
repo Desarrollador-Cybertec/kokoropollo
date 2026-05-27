@@ -8,6 +8,10 @@ final class Response
 {
     public static function redirect(string $url, int $code = 302): never
     {
+        // Only allow internal relative paths — prevents open redirect attacks
+        if (!str_starts_with($url, '/') || str_starts_with($url, '//')) {
+            $url = '/';
+        }
         http_response_code($code);
         header('Location: ' . $url);
         exit;

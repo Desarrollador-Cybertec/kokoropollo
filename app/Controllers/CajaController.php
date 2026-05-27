@@ -15,13 +15,28 @@ final class CajaController
     {
         AuthMiddleware::handle();
 
-        $hoy           = date('Y-m-d');
-        $total         = (new Caja())->getTotal();
-        $movimientosHoy = (new HistorialCaja())->filter($hoy, $hoy);
-        $rol           = Rol::tryFrom(Session::get('rol') ?? '');
-        $dashboardUrl  = $rol?->dashboard() ?? '/dashboard';
+        $hoy    = date('Y-m-d');
+        $ayer   = date('Y-m-d', strtotime('-1 day'));
+        $lunEs  = date('Y-m-d', strtotime('monday this week'));
+        $priMes = date('Y-m-01');
 
-        View::render('caja/index', compact('total', 'movimientosHoy', 'dashboardUrl'));
+        $total          = (new Caja())->getTotal();
+        $movimientosHoy = (new HistorialCaja())->filter($hoy, $hoy);
+        $rol            = Rol::tryFrom(Session::get('rol') ?? '');
+        $dashboardUrl   = $rol?->dashboard() ?? '/dashboard';
+
+        $ingresosHoy = 0.0;
+        $retirosHoy  = 0.0;
+        foreach ($movimientosHoy as $m) {
+            if ($m['tipo'] === 'ingreso') $ingresosHoy += (float) $m['valor'];
+            if ($m['tipo'] === 'retiro')  $retirosHoy  += (float) $m['valor'];
+        }
+
+        View::render('caja/index', compact(
+            'total', 'movimientosHoy', 'dashboardUrl',
+            'hoy', 'ayer', 'lunEs', 'priMes',
+            'ingresosHoy', 'retirosHoy'
+        ));
     }
 
     public function process(Request $request): void
@@ -50,16 +65,8 @@ final class CajaController
         };
 
         if ($tipo === 'retiro' && $valor > $total) {
-            $hoy          = date('Y-m-d');
-            $rol          = Rol::tryFrom(Session::get('rol') ?? '');
-            $dashboardUrl = $rol?->dashboard() ?? '/dashboard';
-            View::render('caja/index', [
-                'total'          => $total,
-                'movimientosHoy' => (new HistorialCaja())->filter($hoy, $hoy),
-                'dashboardUrl'   => $dashboardUrl,
-                'error'          => 'No puede retirar más de lo que hay en caja.',
-            ]);
-            return;
+            Session::flash('error', 'No puede retirar más de lo que hay en caja.');
+            Response::redirect('/caja');
         }
 
         $nuevoTotal = $tipo === 'ingreso' ? $total + $valor : $total - $valor;
@@ -71,6 +78,13 @@ final class CajaController
             'usuario' => $usuario,
         ]);
 
+        $label = $tipo === 'ingreso' ? 'Ingreso' : 'Retiro';
+        Session::flash('exito', "{$label} de \${$this->fmt($valor)} registrado.");
         Response::redirect('/caja');
+    }
+
+    private function fmt(float $valor): string
+    {
+        return number_format($valor, 0, ',', '.');
     }
 }

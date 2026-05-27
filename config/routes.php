@@ -17,9 +17,9 @@ $router->get('/',          [AuthController::class,      'showLogin']);
 $router->post('/login',    [AuthController::class,      'login']);
 $router->get('/logout',    [AuthController::class,      'logout']);
 
-// ── Dashboards ─────────────────────────────────────────────
-$router->get('/dashboard',          [DashboardController::class, 'admin']);
-$router->get('/dashboard/empleado', [DashboardController::class, 'employee']);
+// ── Dashboards (ambas rutas → mismo controlador unificado) ─
+$router->get('/dashboard',          [DashboardController::class, 'index']);
+$router->get('/dashboard/empleado', [DashboardController::class, 'index']);
 
 // ── Inventario ─────────────────────────────────────────────
 $router->get('/inventario',         [InventarioController::class, 'index']);

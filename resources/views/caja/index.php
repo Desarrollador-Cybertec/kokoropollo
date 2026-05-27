@@ -2,42 +2,25 @@
 declare(strict_types=1);
 use App\Core\{Csrf, View};
 
-$hoy      = date('Y-m-d');
-$ayer     = date('Y-m-d', strtotime('-1 day'));
-$lunEs    = date('Y-m-d', strtotime('monday this week'));
-$priMes   = date('Y-m-01');
+$total = isset($total) ? (float) $total : 0.0;
+$ingresosHoy = isset($ingresosHoy) ? (float) $ingresosHoy : 0.0;
+$retirosHoy = isset($retirosHoy) ? (float) $retirosHoy : 0.0;
+$hoy = isset($hoy) ? (string) $hoy : date('Y-m-d');
+$ayer = isset($ayer) ? (string) $ayer : date('Y-m-d', strtotime('-1 day'));
+$lunEs = isset($lunEs) ? (string) $lunEs : date('Y-m-d', strtotime('monday this week'));
+$priMes = isset($priMes) ? (string) $priMes : date('Y-m-01');
+$dashboardUrl = isset($dashboardUrl) ? (string) $dashboardUrl : '/dashboard';
+$movimientosHoy = (isset($movimientosHoy) && is_array($movimientosHoy)) ? $movimientosHoy : [];
 
-$ingresosHoy = 0.0;
-$retirosHoy  = 0.0;
-foreach ($movimientosHoy as $m) {
-    if ($m['tipo'] === 'ingreso') $ingresosHoy += (float) $m['valor'];
-    if ($m['tipo'] === 'retiro')  $retirosHoy  += (float) $m['valor'];
-}
-?><!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Caja — Kokoro Pollo</title>
-    <?= Csrf::meta() ?>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        :root {
-            --rojo-deep:  #2b1a1a;
-            --rojo-card:  #3c1f1f;
-            --rojo-dark:  #3b0a0a;
-            --rojo-mid:   #5a1a1a;
-            --rojo-hover: #4a0e0e;
-            --oro:        #d4af37;
-            --oro-light:  #e6c857;
-        }
-    </style>
-</head>
+$pageTitle = 'Caja — Kokoro Pollo';
+require dirname(__DIR__) . '/partials/head.php';
+?>
 <body style="background-color:var(--rojo-deep);" class="min-h-screen py-8 pb-28">
+
+<?php require dirname(__DIR__) . '/partials/toasts.php' ?>
 
 <div class="max-w-3xl mx-auto px-4">
 
-    <!-- Título -->
     <h1 class="text-4xl font-black text-center tracking-wide mb-6" style="color:var(--oro);">
         💰 TOTAL EN CAJA
     </h1>
@@ -71,77 +54,47 @@ foreach ($movimientosHoy as $m) {
         </p>
         <div class="flex flex-wrap gap-2">
             <a href="/historial?desde=<?= $hoy ?>&hasta=<?= $hoy ?>"
-               class="font-bold px-5 py-2 rounded-xl text-sm transition-all"
-               style="background-color:var(--oro); color:var(--rojo-dark);"
-               onmouseover="this.style.backgroundColor='var(--oro-light)'"
-               onmouseout="this.style.backgroundColor='var(--oro)'">
+               class="font-bold px-5 py-2 rounded-xl text-sm btn-primary">
                 Hoy
             </a>
             <a href="/historial?desde=<?= $ayer ?>&hasta=<?= $ayer ?>"
-               class="font-bold px-5 py-2 rounded-xl text-sm transition-all"
-               style="background-color:var(--rojo-mid); color:white;"
-               onmouseover="this.style.backgroundColor='var(--rojo-hover)'"
-               onmouseout="this.style.backgroundColor='var(--rojo-mid)'">
+               class="font-bold px-5 py-2 rounded-xl text-sm btn-secondary">
                 Ayer
             </a>
             <a href="/historial?desde=<?= $lunEs ?>&hasta=<?= $hoy ?>"
-               class="font-bold px-5 py-2 rounded-xl text-sm transition-all"
-               style="background-color:var(--rojo-mid); color:white;"
-               onmouseover="this.style.backgroundColor='var(--rojo-hover)'"
-               onmouseout="this.style.backgroundColor='var(--rojo-mid)'">
+               class="font-bold px-5 py-2 rounded-xl text-sm btn-secondary">
                 Esta semana
             </a>
             <a href="/historial?desde=<?= $priMes ?>&hasta=<?= $hoy ?>"
-               class="font-bold px-5 py-2 rounded-xl text-sm transition-all"
-               style="background-color:var(--rojo-mid); color:white;"
-               onmouseover="this.style.backgroundColor='var(--rojo-hover)'"
-               onmouseout="this.style.backgroundColor='var(--rojo-mid)'">
+               class="font-bold px-5 py-2 rounded-xl text-sm btn-secondary">
                 Este mes
             </a>
             <a href="/historial"
-               class="font-bold px-5 py-2 rounded-xl text-sm transition-all"
-               style="background-color:var(--rojo-mid); color:white;"
-               onmouseover="this.style.backgroundColor='var(--rojo-hover)'"
-               onmouseout="this.style.backgroundColor='var(--rojo-mid)'">
+               class="font-bold px-5 py-2 rounded-xl text-sm btn-secondary">
                 📋 Todo el historial
             </a>
         </div>
     </div>
-
-    <?php if (!empty($error)): ?>
-        <div class="bg-red-100 text-red-800 text-lg font-semibold px-5 py-4 rounded-xl mb-6 text-center">
-            <?= View::escape($error) ?>
-        </div>
-    <?php endif; ?>
 
     <!-- Acciones -->
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
 
         <!-- Añadir -->
         <div class="rounded-2xl p-6 shadow-xl" style="background-color:var(--rojo-card);">
-            <h2 class="text-xl font-black tracking-wide mb-5 text-center uppercase" style="color:#4ade80;">
+            <h2 class="text-xl font-black tracking-wide mb-5 text-center uppercase text-green-400">
                 ➕ Añadir Dinero
             </h2>
             <form method="POST" action="/caja" class="flex flex-col gap-4">
                 <?= Csrf::field() ?>
                 <input type="hidden" name="accion" value="anadir">
                 <input type="number" step="1" name="valor"
-                       placeholder="Ej: $50.000" required min="1"
-                       class="text-xl font-bold px-4 py-4 rounded-xl outline-none"
-                       style="background-color:#2b1a1a; border:2px solid #5a1a1a; color:white;"
-                       onfocus="this.style.borderColor='#4ade80'"
-                       onblur="this.style.borderColor='#5a1a1a'">
+                       placeholder="Ej: 50000" required min="1"
+                       class="input-green text-xl font-bold px-4 py-4 rounded-xl w-full">
                 <input type="text" name="concepto"
                        placeholder="Ej: Venta de la tarde" required maxlength="255"
-                       class="text-lg px-4 py-4 rounded-xl outline-none"
-                       style="background-color:#2b1a1a; border:2px solid #5a1a1a; color:white;"
-                       onfocus="this.style.borderColor='#4ade80'"
-                       onblur="this.style.borderColor='#5a1a1a'">
+                       class="input-green text-lg px-4 py-4 rounded-xl w-full">
                 <button type="submit"
-                        class="font-black text-xl py-4 rounded-xl transition-all uppercase tracking-wide"
-                        style="background-color:#16a34a; color:white;"
-                        onmouseover="this.style.backgroundColor='#15803d'"
-                        onmouseout="this.style.backgroundColor='#16a34a'">
+                        class="font-black text-xl py-4 rounded-xl uppercase tracking-wide btn-green">
                     ✅ AÑADIR
                 </button>
             </form>
@@ -156,22 +109,13 @@ foreach ($movimientosHoy as $m) {
                 <?= Csrf::field() ?>
                 <input type="hidden" name="accion" value="retirar">
                 <input type="number" step="1" name="valor"
-                       placeholder="Ej: $20.000" required min="1"
-                       class="text-xl font-bold px-4 py-4 rounded-xl outline-none"
-                       style="background-color:#2b1a1a; border:2px solid #5a1a1a; color:white;"
-                       onfocus="this.style.borderColor='#ef4444'"
-                       onblur="this.style.borderColor='#5a1a1a'">
+                       placeholder="Ej: 20000" required min="1"
+                       class="input-red text-xl font-bold px-4 py-4 rounded-xl w-full">
                 <input type="text" name="concepto"
                        placeholder="Ej: Compra de insumos" required maxlength="255"
-                       class="text-lg px-4 py-4 rounded-xl outline-none"
-                       style="background-color:#2b1a1a; border:2px solid #5a1a1a; color:white;"
-                       onfocus="this.style.borderColor='#ef4444'"
-                       onblur="this.style.borderColor='#5a1a1a'">
+                       class="input-red text-lg px-4 py-4 rounded-xl w-full">
                 <button type="submit"
-                        class="font-black text-xl py-4 rounded-xl transition-all uppercase tracking-wide"
-                        style="background-color:#b91c1c; color:white;"
-                        onmouseover="this.style.backgroundColor='#ef4444'"
-                        onmouseout="this.style.backgroundColor='#b91c1c'">
+                        class="font-black text-xl py-4 rounded-xl uppercase tracking-wide btn-danger">
                     💸 RETIRAR
                 </button>
             </form>
@@ -199,8 +143,7 @@ foreach ($movimientosHoy as $m) {
                 </thead>
                 <tbody>
                 <?php foreach (array_reverse($movimientosHoy) as $m): ?>
-                    <tr class="border-b text-white"
-                        style="border-color:var(--rojo-mid);">
+                    <tr class="border-b text-white tr-dark" style="border-color:var(--rojo-mid);">
                         <td class="px-4 py-3">
                             <?php if ($m['tipo'] === 'ingreso'): ?>
                                 <span class="font-bold text-green-400">▲ Ingreso</span>
@@ -213,7 +156,7 @@ foreach ($movimientosHoy as $m) {
                         </td>
                         <td class="px-4 py-3 font-bold <?= $m['tipo'] === 'ingreso' ? 'text-green-400' : '' ?>"
                             <?= $m['tipo'] === 'retiro' ? 'style="color:#fca5a5;"' : '' ?>>
-                            <?= $m['tipo'] === 'ingreso' ? '+' : '-' ?>$<?= number_format((float)$m['valor'], 0, ',', '.') ?>
+                            <?= $m['tipo'] === 'ingreso' ? '+' : '-' ?>$<?= number_format((float) $m['valor'], 0, ',', '.') ?>
                         </td>
                         <td class="px-4 py-3 text-sm" style="color:#9ca3af;">
                             <?= date('H:i', strtotime($m['fecha'])) ?>
@@ -234,10 +177,7 @@ foreach ($movimientosHoy as $m) {
 
 <!-- Botón regresar -->
 <a href="<?= View::escape($dashboardUrl) ?>"
-   class="fixed bottom-5 right-5 font-black text-lg px-6 py-4 rounded-xl shadow-lg transition-all"
-   style="background-color:var(--oro); color:var(--rojo-dark);"
-   onmouseover="this.style.backgroundColor='var(--oro-light)'"
-   onmouseout="this.style.backgroundColor='var(--oro)'">
+   class="fixed bottom-5 right-5 font-black text-lg px-6 py-4 rounded-xl shadow-lg btn-primary">
     ← REGRESAR
 </a>
 

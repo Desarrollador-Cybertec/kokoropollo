@@ -16,7 +16,7 @@ final class AuthController
             Response::redirect($rol?->dashboard() ?? '/');
         }
 
-        View::render('auth/login', ['error' => Session::getFlash('error')]);
+        View::render('auth/login');
     }
 
     public function login(Request $request): void

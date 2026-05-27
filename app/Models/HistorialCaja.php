@@ -19,6 +19,39 @@ final class HistorialCaja
 
     public function filter(?string $desde, ?string $hasta): array
     {
+        [$where, $params] = $this->buildWhere($desde, $hasta);
+        $stmt = Database::getInstance()->prepare(
+            'SELECT * FROM historial_caja' . $where . ' ORDER BY fecha DESC'
+        );
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
+
+    public function count(?string $desde, ?string $hasta): int
+    {
+        [$where, $params] = $this->buildWhere($desde, $hasta);
+        $stmt = Database::getInstance()->prepare(
+            'SELECT COUNT(*) FROM historial_caja' . $where
+        );
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function filterPaginated(?string $desde, ?string $hasta, int $pagina = 1, int $porPagina = 50): array
+    {
+        [$where, $params] = $this->buildWhere($desde, $hasta);
+        $offset   = ($pagina - 1) * $porPagina;
+        $params[] = $porPagina;
+        $params[] = $offset;
+        $stmt = Database::getInstance()->prepare(
+            'SELECT * FROM historial_caja' . $where . ' ORDER BY fecha DESC LIMIT ? OFFSET ?'
+        );
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
+
+    private function buildWhere(?string $desde, ?string $hasta): array
+    {
         $conditions = [];
         $params     = [];
 
@@ -31,12 +64,7 @@ final class HistorialCaja
             $params[]     = $hasta . ' 23:59:59';
         }
 
-        $where = $conditions ? ' WHERE ' . implode(' AND ', $conditions) : '';
-        $sql   = 'SELECT * FROM historial_caja' . $where . ' ORDER BY fecha DESC';
-
-        $stmt = Database::getInstance()->prepare($sql);
-        $stmt->execute($params);
-        return $stmt->fetchAll();
+        return [$conditions ? ' WHERE ' . implode(' AND ', $conditions) : '', $params];
     }
 
     private function validDate(string $date): bool

@@ -43,6 +43,10 @@ final class UsuariosController
             Response::json(['status' => 'error', 'mensaje' => 'Todos los campos son obligatorios.']);
         }
 
+        if (strlen($clave) < 8) {
+            Response::json(['status' => 'error', 'mensaje' => 'La contraseña debe tener al menos 8 caracteres.']);
+        }
+
         $ok = (new Usuario())->create($nombre, $usuario, $clave, $rol);
         Response::json(
             $ok
@@ -72,7 +76,11 @@ final class UsuariosController
             Response::json(['status' => 'error', 'mensaje' => 'Datos incompletos.']);
         }
 
-        $ok = (new Usuario())->update($id, $nombre, $usuario, $rol, $clave ?: null);
+        if ($clave !== null && $clave !== '' && strlen($clave) < 8) {
+            Response::json(['status' => 'error', 'mensaje' => 'La contraseña debe tener al menos 8 caracteres.']);
+        }
+
+        $ok = (new Usuario())->update($id, $nombre, $usuario, $rol, ($clave !== '' ? $clave : null));
         Response::json(
             $ok
                 ? ['status' => 'ok',    'mensaje' => 'Usuario actualizado correctamente.']
