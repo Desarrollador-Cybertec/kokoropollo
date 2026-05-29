@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 define('ROOT_PATH', dirname(__DIR__));
 
-require ROOT_PATH . '/vendor/autoload.php';
-
-use Dotenv\Dotenv;
+$autoloadPath = ROOT_PATH . '/vendor/autoload.php';
+if (is_file($autoloadPath) && is_readable($autoloadPath)) {
+    require $autoloadPath;
+}
 
 /**
  * @return list<string>
@@ -106,21 +107,102 @@ function splitSqlStatements(string $sql): array
     return $statements;
 }
 
+function loadEnvFallback(string $rootPath): void
+{
+    $envPath = $rootPath . '/.env';
+    if (!is_file($envPath) || !is_readable($envPath)) {
+        return;
+    }
+
+    $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if ($lines === false) {
+        return;
+    }
+
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '' || str_starts_with($line, '#')) {
+            continue;
+        }
+
+        $parts = explode('=', $line, 2);
+        if (count($parts) !== 2) {
+            continue;
+        }
+
+        $key = trim($parts[0]);
+        $value = trim($parts[1]);
+
+        if ($key === '') {
+            continue;
+        }
+
+        if (
+            (str_starts_with($value, '"') && str_ends_with($value, '"')) ||
+            (str_starts_with($value, "'") && str_ends_with($value, "'"))
+        ) {
+            $value = substr($value, 1, -1);
+        }
+
+        if (getenv($key) === false) {
+            putenv("{$key}={$value}");
+        }
+        if (!array_key_exists($key, $_ENV)) {
+            $_ENV[$key] = $value;
+        }
+    }
+}
+
+function executeSqlFile(PDO $pdo, string $filePath): void
+{
+    if (!is_file($filePath)) {
+        throw new RuntimeException("No se encontro el archivo SQL: {$filePath}");
+    }
+
+    $sql = (string) file_get_contents($filePath);
+    $sql = preg_replace('/^\xEF\xBB\xBF/', '', $sql) ?? $sql;
+
+    foreach (splitSqlStatements($sql) as $statement) {
+        $pdo->exec($statement);
+    }
+}
+
+function columnExists(PDO $pdo, string $table, string $column): bool
+{
+    $stmt = $pdo->prepare(
+        'SELECT COUNT(*) FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+    );
+    $stmt->execute([$table, $column]);
+
+    return (int) $stmt->fetchColumn() > 0;
+}
+
 try {
-    $dotenv = Dotenv::createImmutable(ROOT_PATH);
-    $dotenv->load();
-    $dotenv->required(['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASS']);
+    if (class_exists(Dotenv\Dotenv::class)) {
+        $dotenv = Dotenv\Dotenv::createImmutable(ROOT_PATH);
+        $dotenv->load();
+    } else {
+        loadEnvFallback(ROOT_PATH);
+    }
 
-    $config = require ROOT_PATH . '/config/database.php';
+    $dbHost = $_ENV['DB_HOST'] ?? getenv('DB_HOST') ?: 'localhost';
+    $dbPort = $_ENV['DB_PORT'] ?? getenv('DB_PORT') ?: '3306';
+    $dbName = $_ENV['DB_NAME'] ?? getenv('DB_NAME') ?: '';
+    $dbUser = $_ENV['DB_USER'] ?? getenv('DB_USER') ?: '';
+    $dbPass = $_ENV['DB_PASS'] ?? getenv('DB_PASS') ?: '';
 
-    $host = (string) ($config['host'] ?? 'localhost');
-    $port = (int) ($config['port'] ?? 3306);
-    $dbName = trim((string) ($config['database'] ?? ''));
-    $user = (string) ($config['username'] ?? '');
-    $pass = (string) ($config['password'] ?? '');
+    $host = (string) $dbHost;
+    $port = (int) $dbPort;
+    $dbName = trim((string) $dbName);
+    $user = (string) $dbUser;
+    $pass = (string) $dbPass;
 
     if ($dbName === '') {
         throw new RuntimeException('DB_NAME no esta configurado.');
+    }
+    if ($user === '') {
+        throw new RuntimeException('DB_USER no esta configurado.');
     }
 
     $adminPdo = new PDO(
@@ -149,17 +231,29 @@ try {
         ]
     );
 
-    $schemaPath = ROOT_PATH . '/database/schema.sql';
-    if (!is_file($schemaPath)) {
-        throw new RuntimeException('No se encontro database/schema.sql');
-    }
-
     echo 'Ejecutando esquema principal...' . PHP_EOL;
-    $sql = (string) file_get_contents($schemaPath);
-    $sql = preg_replace('/^\xEF\xBB\xBF/', '', $sql) ?? $sql;
+    executeSqlFile($pdo, ROOT_PATH . '/database/schema.sql');
 
-    foreach (splitSqlStatements($sql) as $statement) {
-        $pdo->exec($statement);
+    echo 'Ejecutando esquemas adicionales...' . PHP_EOL;
+    $additionalSchemas = [
+        ['file' => 'add_configuracion.sql', 'shouldRun' => static fn(PDO $db): bool => true],
+        ['file' => 'add_categoria.sql', 'shouldRun' => static fn(PDO $db): bool => !columnExists($db, 'inventario', 'categoria')],
+        ['file' => 'add_orden_id.sql', 'shouldRun' => static fn(PDO $db): bool => !columnExists($db, 'ventas', 'orden_id')],
+        ['file' => 'add_pollo_crudo.sql', 'shouldRun' => static fn(PDO $db): bool => true],
+        ['file' => 'update_categorias_v2.sql', 'shouldRun' => static fn(PDO $db): bool => true],
+    ];
+
+    foreach ($additionalSchemas as $migration) {
+        $fileName = $migration['file'];
+        $shouldRun = $migration['shouldRun'];
+
+        if (!$shouldRun($pdo)) {
+            echo "- {$fileName}: omitido (ya aplicado)." . PHP_EOL;
+            continue;
+        }
+
+        echo "- {$fileName}: ejecutando..." . PHP_EOL;
+        executeSqlFile($pdo, ROOT_PATH . '/database/' . $fileName);
     }
 
     echo 'Ejecutando seeder de usuario admin...' . PHP_EOL;

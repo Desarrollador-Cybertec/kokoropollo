@@ -1,0 +1,16 @@
+Options -Indexes
+RewriteEngine On
+
+# Si existe archivo/directorio real en la raiz, servirlo tal cual
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Si existe en /public (css/js/img), redirigir internamente
+RewriteCond %{DOCUMENT_ROOT}/public/$1 -f [OR]
+RewriteCond %{DOCUMENT_ROOT}/public/$1 -d
+RewriteRule ^(.*)$ public/$1 [L]
+
+# Todo lo demas entra por el front controller
+RewriteRule ^$ public/index.php [QSA,L]
+RewriteRule ^(.+)$ public/index.php [QSA,L]
