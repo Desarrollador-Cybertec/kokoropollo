@@ -1,9 +1,8 @@
 Options -Indexes
 RewriteEngine On
 
-# Si existe archivo/directorio real en la raiz, servirlo tal cual
-RewriteCond %{REQUEST_FILENAME} -f [OR]
-RewriteCond %{REQUEST_FILENAME} -d
+# Si existe archivo real en la raiz, servirlo tal cual (NO directorios: config/, app/, etc. deben llegar a index.php)
+RewriteCond %{REQUEST_FILENAME} -f
 RewriteRule ^ - [L]
 
 # Si existe en /public (css/js/img), redirigir internamente
