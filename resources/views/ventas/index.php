@@ -23,7 +23,7 @@ require dirname(__DIR__) . '/partials/head.php';
     --rojo-bord: #5a1a1a;
     --oro-cl:    #e6c857;
 }
-body { background-color: var(--rojo-deep); min-height: 100vh; }
+body { background: linear-gradient(135deg,#3b0a0a 0%,#4a0e0e 40%,#2b1a1a 100%); min-height: 100vh; }
 
 /* ── Tarjetas de producto ── */
 .prod-card {

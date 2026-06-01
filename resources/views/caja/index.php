@@ -16,7 +16,7 @@ $ventasPendientesHoy = isset($ventasPendientesHoy) ? (float) $ventasPendientesHo
 $pageTitle = 'Caja — Kokoro Pollo';
 require dirname(__DIR__) . '/partials/head.php';
 ?>
-<body style="background-color:var(--rojo-deep);" class="min-h-screen py-8 pb-28">
+<body class="bg-app min-h-screen py-8 pb-28">
 
 <?php require dirname(__DIR__) . '/partials/toasts.php' ?>
 

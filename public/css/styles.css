@@ -1,9 +1,19 @@
 /* ─── Kokoro Pollo — stylesheet ─────────────────────────── */
 
+/* ── Fondo gradiente único de la app ── */
+.bg-app {
+    background: linear-gradient(135deg, #3b0a0a 0%, #4a0e0e 40%, #2b1a1a 100%);
+}
+
 /* ── Scrollbar en tablas con scroll ── */
 .overflow-y-auto::-webkit-scrollbar { width: 6px; }
 .overflow-y-auto::-webkit-scrollbar-track { background: transparent; }
 .overflow-y-auto::-webkit-scrollbar-thumb { background-color: #5a1a1a; border-radius: 10px; }
+
+/* ── Scrollbar global ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background-color: #5a1a1a; border-radius: 10px; }
 
 /* ── Tailwind CDN no genera border-3 por defecto ── */
 .border-3 { border-width: 3px; }
