@@ -1,20 +1,20 @@
 # Kokoro Pollo — Documentación Completa del Sistema
 
 > Sistema POS especializado para asadero de pollo tradicional colombiano.  
-> Stack: **PHP 8.4** · **MySQL** (InnoDB) · **Tailwind CSS CDN** · **Vanilla JS**  
+> Stack: **PHP 8.4** · **MySQL / MariaDB** (InnoDB) · **Tailwind CSS CDN** · **Vanilla JS**  
 > Servidor local: `http://kokoropollo.test` vía **Laravel Herd**  
-> Última actualización: 2026-06-01
+> Última actualización: 2026-06-01 (v3.0 — Sprints 1-3 de la segunda etapa)
 
 ---
 
 ## Índice
 
 1. [Arquitectura general](#1-arquitectura-general)
-2. [Base de datos — 12 tablas](#2-base-de-datos--12-tablas)
+2. [Base de datos — 13 tablas](#2-base-de-datos--13-tablas)
 3. [Control de acceso por rol](#3-control-de-acceso-por-rol)
 4. [Mapa de rutas](#4-mapa-de-rutas)
 5. [Módulo: Autenticación](#5-módulo-autenticación)
-6. [Módulo: Dashboard](#6-módulo-dashboard)
+6. [Módulo: Dashboards (3 perfiles)](#6-módulo-dashboards-3-perfiles)
 7. [Módulo: Ventas (POS)](#7-módulo-ventas-pos)
 8. [Módulo: Caja](#8-módulo-caja)
 9. [Módulo: Apertura de Caja](#9-módulo-apertura-de-caja)
@@ -26,8 +26,9 @@
 15. [Módulo: Usuarios](#15-módulo-usuarios)
 16. [Módulo: Configuración](#16-módulo-configuración)
 17. [Módulo: Reportes Gerenciales](#17-módulo-reportes-gerenciales)
-18. [Seguridad transversal](#18-seguridad-transversal)
-19. [Checklist de verificación](#19-checklist-de-verificación)
+18. [Módulo: Auditoría Operativa](#18-módulo-auditoría-operativa)
+19. [Seguridad transversal](#19-seguridad-transversal)
+20. [Checklist de verificación](#20-checklist-de-verificación)
 
 ---
 
@@ -46,39 +47,43 @@ Router (GET / POST por ruta definida en config/routes.php)
 Controller  →  Model (PDO / MySQL)  →  View (PHP template)
 ```
 
-### Estructura de archivos relevante
+### Estructura de archivos
 
 ```
 KokoroPollo/
 ├── app/
 │   ├── Controllers/
 │   │   ├── AuthController.php
-│   │   ├── DashboardController.php
+│   │   ├── DashboardController.php          ← index() + indexJefe()
 │   │   ├── VentasController.php
 │   │   ├── CajaController.php
-│   │   ├── CajaAperturaController.php     ← Sprint 1
-│   │   ├── CajaCierreController.php       ← Sprint 1
-│   │   ├── AlsesController.php            ← Sprint 1
-│   │   ├── CreditosController.php         ← Sprint 1
+│   │   ├── CajaAperturaController.php
+│   │   ├── CajaCierreController.php
+│   │   ├── AlsesController.php
+│   │   ├── CreditosController.php
 │   │   ├── HistorialController.php
 │   │   ├── InventarioController.php
 │   │   ├── UsuariosController.php
 │   │   ├── ConfigController.php
-│   │   └── ReportesController.php         ← Sprint 3
+│   │   ├── ReportesController.php           ← +empleados() +exportCsv()
+│   │   └── AuditoriaController.php          ← NUEVO Sprint 3
 │   ├── Models/
 │   │   ├── Caja.php
-│   │   ├── CajaApertura.php               ← Sprint 1
-│   │   ├── CajaCierre.php                 ← Sprint 1
-│   │   ├── CreditoEmpleado.php            ← Sprint 1
-│   │   ├── RetiroSeguridad.php            ← Sprint 1
+│   │   ├── CajaApertura.php
+│   │   ├── CajaCierre.php
+│   │   ├── CreditoEmpleado.php
+│   │   ├── RetiroSeguridad.php
 │   │   ├── HistorialCaja.php
-│   │   ├── Inventario.php
+│   │   ├── Inventario.php                   ← +deductOne() +countCritico()
 │   │   ├── Venta.php
 │   │   ├── Configuracion.php
-│   │   └── Reporte.php                    ← Sprint 3
+│   │   ├── Reporte.php                      ← +ventasPorEmpleado() +ventasEmpleadoPorDia()
+│   │   ├── Usuario.php                      ← +find()
+│   │   └── Auditoria.php                    ← NUEVO Sprint 3
 │   ├── Core/  (Csrf, Database, Logger, Request, Response, Router, Session, View)
-│   ├── Enums/ (Rol)
-│   └── Middleware/ (AuthMiddleware, RoleMiddleware)
+│   ├── Enums/
+│   │   └── Rol.php                          ← 3 casos: Jefe, Administrador, Empleado + atLeast()
+│   └── Middleware/ (AuthMiddleware, RoleMiddleware)  ← usa atLeast()
 ├── config/routes.php
 ├── database/
 │   ├── schema.sql
@@ -87,47 +92,50 @@ KokoroPollo/
 │       ├── 002_caja_cierres.sql
 │       ├── 003_creditos_empleados.sql
 │       ├── 004_retiros_seguridad.sql
-│       └── 005_ventas_tipo_pedido.sql
+│       ├── 005_ventas_tipo_pedido.sql
+│       ├── 006_rol_jefe.sql                 ← NUEVO: ENUM Jefe, migración admins → Jefe, borra Broaster
+│       └── 008_auditoria.sql                ← NUEVO: tabla auditoria
 ├── public/
 │   ├── index.php
 │   ├── css/styles.css
-│   ├── js/ventas.js
+│   ├── js/ventas.js                         ← sin Broaster, +primer_item, +empaque_id
 │   └── img/logo.png
 └── resources/views/
     ├── auth/login.php
-    ├── dashboard/index.php
-    ├── ventas/index.php
+    ├── dashboard/
+    │   ├── index.php                        ← Admin 6 botones / Empleado 3 botones
+    │   └── jefe.php                         ← NUEVO: dashboard ejecutivo
+    ├── ventas/index.php                     ← sin sección Preparación (Broaster eliminado)
     ├── caja/index.php
-    ├── caja/apertura.php                  ← Sprint 1
-    ├── caja/cierre.php                    ← Sprint 1
-    ├── creditos/index.php                 ← Sprint 1
+    ├── caja/apertura.php
+    ├── caja/cierre.php
+    ├── creditos/index.php
     ├── historial/index.php
     ├── inventario/index.php
-    ├── usuarios/index.php
-    ├── config/index.php
-    ├── reportes/                          ← Sprint 3
-    │   ├── index.php
-    │   ├── diario.php
-    │   ├── semanal.php
-    │   ├── mensual.php
-    │   └── productos.php
-    └── partials/
-        ├── head.php
-        ├── toasts.php
-        └── confirm-modal.php
+    ├── usuarios/index.php                   ← +opción Jefe en dropdown
+    ├── config/index.php                     ← sin Broaster, +sección empaque automático
+    ├── reportes/
+    │   ├── index.php                        ← +tarjeta Por Empleado
+    │   ├── diario.php                       ← +botón CSV
+    │   ├── semanal.php                      ← +botón CSV
+    │   ├── mensual.php                      ← +botón CSV
+    │   ├── productos.php                    ← +botón CSV
+    │   └── empleados.php                    ← NUEVO Sprint 2
+    ├── auditoria/
+    │   └── index.php                        ← NUEVO Sprint 3
+    └── partials/ (head.php, toasts.php, confirm-modal.php)
 ```
 
 ### Identidad visual
 
-- **Fondo:** `linear-gradient(135deg, #3b0a0a 0%, #4a0e0e 40%, #2b1a1a 100%)` aplicado a todas las páginas
+- **Fondo:** `linear-gradient(135deg, #3b0a0a 0%, #4a0e0e 40%, #2b1a1a 100%)` en todas las páginas (inline style en `<body>`)
 - **Acento principal:** Oro `#d4af37` / `#e6c857`
-- **Cards:** `#3c1f1f` (rojo oscuro medio)
-- **Tipografía:** Tailwind CDN (sistema)
-- **CSS personalizado:** `public/css/styles.css` — botones, inputs, filas de tabla, toasts, scrollbar
+- **Cards:** `#3c1f1f`
+- **CSS personalizado:** `public/css/styles.css` — botones, inputs, filas, toasts, scrollbar
 
 ---
 
-## 2. Base de datos — 12 tablas
+## 2. Base de datos — 13 tablas
 
 Base de datos: `kokoropollo` · Motor: InnoDB · Charset: utf8mb4
 
@@ -135,25 +143,37 @@ Base de datos: `kokoropollo` · Motor: InnoDB · Charset: utf8mb4
 
 | Tabla | Descripción | Campos clave |
 |---|---|---|
-| `usuarios` | Cuentas del sistema | id, nombre, usuario (UNIQUE), clave (bcrypt), rol ENUM(Administrador/Empleado) |
-| `inventario` | Artículos en stock | id, articulo, categoria ENUM, cantidad (cuartos), valor (por cuarto) |
+| `usuarios` | Cuentas del sistema | id, nombre, usuario (UNIQUE), clave (bcrypt), rol ENUM(**Jefe**/Administrador/Empleado) |
+| `inventario` | Artículos en stock | id, articulo, categoria ENUM, cantidad (cuartos para Pollo Crudo), valor |
 | `caja` | Saldo actual (fila única id=1) | id, total DECIMAL |
 | `historial_caja` | Movimientos manuales de caja | id, tipo (ingreso/retiro), valor, concepto, usuario, fecha |
 | `ventas` | Líneas de venta registradas | id, orden_id, inventario_id (FK), cantidad, precio_unitario, total, usuario, **tipo_pedido, nombre_cliente, telefono, direccion**, fecha, liquidado |
 | `configuracion` | Parámetros clave-valor | clave (PK), valor |
 
-### Tablas nuevas (v2 — Sprints 1-3)
+### Tablas añadidas (v2)
 
-| Tabla | Sprint | Descripción |
-|---|---|---|
-| `caja_aperturas` | 1 | Una apertura por día con base inicial |
-| `caja_apertura_denominaciones` | 1 | Detalle de billetes/monedas en la apertura |
-| `caja_cierres` | 1 | Cierre diario con arqueo y resultado |
-| `caja_cierre_denominaciones` | 1 | Detalle del conteo físico en el cierre |
-| `creditos_empleados` | 1 | Préstamos internos a empleados |
-| `retiros_seguridad` | 1 | ALSÉS — traslados de seguridad |
+| Tabla | Descripción |
+|---|---|
+| `caja_aperturas` | Una apertura por día con base inicial |
+| `caja_apertura_denominaciones` | Detalle billetes/monedas en la apertura |
+| `caja_cierres` | Cierre diario con arqueo y resultado |
+| `caja_cierre_denominaciones` | Detalle del conteo físico en el cierre |
+| `creditos_empleados` | Préstamos internos a empleados |
+| `retiros_seguridad` | ALSÉS — traslados de seguridad |
+| `auditoria` | Registro de cambios operativos críticos ← **NUEVO v3** |
 
-### Columnas nuevas en `ventas` (Sprint 2 — Migración 005)
+### Tabla `auditoria` (nueva)
+
+```sql
+id          INT UNSIGNED AUTO_INCREMENT PK
+usuario     VARCHAR(60)      -- quien hizo la acción
+modulo      VARCHAR(40)      -- inventario | usuarios | config | creditos
+accion      ENUM('crear','editar','eliminar','pagar')
+descripcion VARCHAR(255)     -- texto legible: "Precio ¼ Asado: $8.000 → $9.000"
+fecha       DATETIME DEFAULT CURRENT_TIMESTAMP
+```
+
+### Columnas en `ventas` (migración 005)
 
 ```sql
 tipo_pedido    ENUM('local','llevar') NOT NULL DEFAULT 'local'
@@ -162,23 +182,25 @@ telefono       VARCHAR(20)  DEFAULT NULL
 direccion      VARCHAR(255) DEFAULT NULL
 ```
 
-### Claves nuevas en `configuracion`
+### Claves en `configuracion`
 
 ```
-condimentos_cuartos_offset    → Cuartos vendidos al iniciar ciclo actual (base del contador)
-condimentos_pollos_por_ciclo  → Capacidad de la preparación (default 1000)
-precio_asado_cuarto/medio/entero
-precio_broaster_cuarto/medio/entero
+precio_asado_cuarto           → Precio ¼ pollo asado
+precio_asado_medio            → Precio ½ pollo asado
+precio_asado_entero           → Precio pollo entero asado
+condimentos_cuartos_offset    → Base del contador de condimentos
+condimentos_pollos_por_ciclo  → Capacidad del ciclo (default 1000)
+empaque_activo                → '0'/'1' — activa descuento automático
+empaque_inventario_id         → ID del artículo de empaque en inventario
 ```
+
+> **Eliminado en migración 006:** `precio_broaster_cuarto`, `precio_broaster_medio`, `precio_broaster_entero`
 
 ### Regla especial Pollo Crudo
 
-- Unidad interna: **cuarto** (¼ de pollo)
-- 1 pollo = 4 cuartos en BD
-- El inventario almacena y descuenta cuartos
-- La UI muestra "X pollos + Y cuartos"
-- El formulario de inventario convierte: pollos → ×4 cuartos, costo/pollo → ÷4 costo/cuarto
-- En ventas: el corte determina cuántos cuartos se descuentan (¼=1, ½=2, entero=4)
+- Unidad interna: **cuarto** (¼ de pollo); 1 pollo = 4 cuartos en BD
+- Inventario almacena y descuenta cuartos; la UI convierte pollos ↔ cuartos
+- Ventas: corte determina cuartos descontados (¼=1, ½=2, entero=4)
 
 ### Denominaciones soportadas (COP)
 `100.000` · `50.000` · `20.000` · `10.000` · `5.000` · `2.000` · `1.000` · `500` · `200` · `100`
@@ -187,23 +209,41 @@ precio_broaster_cuarto/medio/entero
 
 ## 3. Control de acceso por rol
 
-| Módulo | Administrador | Empleado |
-|---|---|---|
-| Dashboard | Panel con 9 botones | Panel con 3 botones |
-| Ventas | ✅ | ✅ |
-| Caja | ✅ | ✅ |
-| Historial | ✅ | ✅ |
-| Inventario | ✅ | ✅ |
-| Apertura de Caja | ✅ | ❌ |
-| Cierre de Caja | ✅ | ❌ |
-| ALSÉS | ✅ (widget en Caja) | ❌ |
-| Créditos Empleados | ✅ | ❌ |
-| Configuración | ✅ | ❌ |
-| Reportes | ✅ | ❌ |
-| Usuarios | ✅ | ❌ |
+### Jerarquía de roles
+
+```
+Jefe (nivel 3)           →  acceso total
+  └── Administrador (nivel 2)  →  operativa (caja, créditos, apertura/cierre)
+        └── Empleado (nivel 1) →  ventas, caja básica, inventario
+```
+
+**Implementación:** `Rol::atLeast(Rol $required): bool` en `app/Enums/Rol.php`.  
+`RoleMiddleware::require(Rol::X)` pasa si `$rolActual->atLeast(X)` — roles superiores siempre pasan.
+
+```php
+// Ejemplo: require(Rol::Administrador) → pasa Administrador Y Jefe
+// require(Rol::Jefe) → pasa solo Jefe
+```
+
+### Tabla de permisos por módulo
+
+| Módulo | Empleado | Administrador | Jefe |
+|---|---|---|---|
+| Ventas | ✅ | ✅ | ✅ |
+| Caja | ✅ | ✅ | ✅ |
+| Inventario | ✅ | ✅ | ✅ |
+| Historial | ✅ | ✅ | ✅ |
+| Apertura de Caja | ❌ | ✅ | ✅ |
+| Cierre de Caja | ❌ | ✅ | ✅ |
+| ALSÉS | ❌ | ✅ | ✅ |
+| Créditos Empleados | ❌ | ✅ | ✅ |
+| Usuarios | ❌ | ❌ | ✅ |
+| Configuración | ❌ | ❌ | ✅ |
+| Reportes | ❌ | ❌ | ✅ |
+| Auditoría | ❌ | ❌ | ✅ |
 
 **Sesión:** guarda `usuario_id`, `usuario`, `rol`  
-**Middleware:** `AuthMiddleware::handle()` (sesión activa) · `RoleMiddleware::require(Rol::X)` (rol específico)
+**Migración 006:** todos los `Administrador` existentes se convierten a `Jefe` automáticamente al ejecutarse.
 
 ---
 
@@ -216,6 +256,7 @@ precio_broaster_cuarto/medio/entero
 | GET | `/logout` | AuthController::logout | Autenticado |
 | GET | `/dashboard` | DashboardController::index | Autenticado |
 | GET | `/dashboard/empleado` | DashboardController::index | Autenticado |
+| GET | `/dashboard/jefe` | DashboardController::indexJefe | Jefe |
 | GET | `/inventario` | InventarioController::index | Autenticado |
 | POST | `/inventario/store` | InventarioController::store | Autenticado |
 | POST | `/inventario/update` | InventarioController::update | Autenticado |
@@ -224,42 +265,45 @@ precio_broaster_cuarto/medio/entero
 | POST | `/caja` | CajaController::process | Autenticado |
 | GET | `/caja/resumen` | CajaController::resumen | Autenticado (JSON) |
 | POST | `/caja/ajuste` | CajaController::ajuste | Autenticado (JSON) |
-| GET | `/caja/apertura` | CajaAperturaController::index | Admin |
-| POST | `/caja/apertura` | CajaAperturaController::store | Admin |
-| GET | `/caja/cierre` | CajaCierreController::index | Admin |
-| POST | `/caja/cierre` | CajaCierreController::store | Admin |
-| POST | `/caja/alse` | AlsesController::store | Admin (JSON) |
-| GET | `/creditos` | CreditosController::index | Admin |
-| POST | `/creditos/crear` | CreditosController::crear | Admin (JSON) |
-| POST | `/creditos/pagar` | CreditosController::pagar | Admin (JSON) |
-| POST | `/creditos/vencer` | CreditosController::vencer | Admin (JSON) |
+| GET | `/caja/apertura` | CajaAperturaController::index | Admin+ |
+| POST | `/caja/apertura` | CajaAperturaController::store | Admin+ |
+| GET | `/caja/cierre` | CajaCierreController::index | Admin+ |
+| POST | `/caja/cierre` | CajaCierreController::store | Admin+ |
+| POST | `/caja/alse` | AlsesController::store | Admin+ (JSON) |
+| GET | `/creditos` | CreditosController::index | Admin+ |
+| POST | `/creditos/crear` | CreditosController::crear | Admin+ (JSON) |
+| POST | `/creditos/pagar` | CreditosController::pagar | Admin+ (JSON) |
+| POST | `/creditos/vencer` | CreditosController::vencer | Admin+ (JSON) |
 | GET | `/historial` | HistorialController::index | Autenticado |
 | GET | `/ventas` | VentasController::index | Autenticado |
 | POST | `/ventas/store` | VentasController::store | Autenticado (JSON) |
 | POST | `/ventas/liquidar` | VentasController::liquidar | Autenticado (JSON) |
-| GET | `/config` | ConfigController::index | Admin |
-| POST | `/config` | ConfigController::save | Admin |
-| POST | `/config/reset-condimentos` | ConfigController::resetCondimentos | Admin |
-| GET | `/reportes` | ReportesController::index | Admin |
-| GET | `/reportes/diario` | ReportesController::diario | Admin |
-| GET | `/reportes/semanal` | ReportesController::semanal | Admin |
-| GET | `/reportes/mensual` | ReportesController::mensual | Admin |
-| GET | `/reportes/productos` | ReportesController::productos | Admin |
-| GET | `/usuarios` | UsuariosController::index | Admin |
-| GET | `/usuarios/list` | UsuariosController::list | Admin (JSON) |
-| POST | `/usuarios/create` | UsuariosController::create | Admin (JSON) |
-| POST | `/usuarios/update` | UsuariosController::update | Admin (JSON) |
-| POST | `/usuarios/delete` | UsuariosController::destroy | Admin (JSON) |
+| GET | `/config` | ConfigController::index | Jefe |
+| POST | `/config` | ConfigController::save | Jefe |
+| POST | `/config/reset-condimentos` | ConfigController::resetCondimentos | Jefe |
+| GET | `/reportes` | ReportesController::index | Jefe |
+| GET | `/reportes/diario` | ReportesController::diario | Jefe |
+| GET | `/reportes/semanal` | ReportesController::semanal | Jefe |
+| GET | `/reportes/mensual` | ReportesController::mensual | Jefe |
+| GET | `/reportes/productos` | ReportesController::productos | Jefe |
+| GET | `/reportes/empleados` | ReportesController::empleados | Jefe |
+| GET | `/auditoria` | AuditoriaController::index | Jefe |
+| GET | `/usuarios` | UsuariosController::index | Jefe |
+| GET | `/usuarios/list` | UsuariosController::list | Jefe (JSON) |
+| POST | `/usuarios/create` | UsuariosController::create | Jefe (JSON) |
+| POST | `/usuarios/update` | UsuariosController::update | Jefe (JSON) |
+| POST | `/usuarios/delete` | UsuariosController::destroy | Jefe (JSON) |
+
+> **Admin+** = Administrador o Jefe (por jerarquía `atLeast`)
 
 ---
 
 ## 5. Módulo: Autenticación
 
-**Vistas:** `auth/login.php`
+**Vista:** `auth/login.php`
 
-### Flujo Login
 ```
-GET /  →  muestra formulario con logo, campos usuario/contraseña, btn Ingresar
+GET /  →  formulario con logo, campos usuario/contraseña, btn Ingresar
 
 POST /login
   ├─► Valida CSRF (campo _token oculto)
@@ -271,41 +315,72 @@ POST /login
         Session::set('usuario_id', id)
         Session::set('usuario', usuario)
         Session::set('rol', rol)
-        redirect según rol → /dashboard o /dashboard/empleado
+        redirect según rol:
+          Jefe          → /dashboard/jefe
+          Administrador → /dashboard
+          Empleado      → /dashboard/empleado
 ```
 
-### Flujo Logout
 ```
 GET /logout → session_destroy() → redirect('/')
 ```
 
 ---
 
-## 6. Módulo: Dashboard
+## 6. Módulo: Dashboards (3 perfiles)
 
-**Vista:** `dashboard/index.php`
+Cada rol tiene su propio dashboard diferenciado.
 
-### Datos calculados en el controlador
-- `$totalDia` — suma de `ventas.total` del día (se muestra bajo el botón VENTAS)
-- `$pollosEnCiclo` — pollos vendidos desde el último reinicio de condimentos
-- `$pctCondimentos` — porcentaje del ciclo consumido
-- `$alertaCondimentos` — `null | 'preventiva' | 'critica' | 'agotado'`
+### Dashboard del Empleado — `/dashboard/empleado`
 
-### Widget de alerta de condimentos (sobre los botones)
-| % del ciclo | Estilo | Mensaje |
+3 botones: 📦 INVENTARIO · 💰 CAJA · 🛒 VENTAS
+
+### Dashboard del Administrador — `/dashboard`
+
+6 botones: 📦 INVENTARIO · 💰 CAJA · 🛒 VENTAS · 🔓 APERTURA · 🔒 CIERRE · 💳 CRÉDITOS
+
+Widget de alerta de condimentos sobre los botones:
+
+| % del ciclo | Nivel | Mensaje |
 |---|---|---|
 | < 50% | Sin alerta | — |
-| 50-79% | Borde ámbar | ⚠️ Preparar condimentos — N de 1000 pollos |
-| 80-99% | Borde rojo | 🔴 Condimentos críticos |
-| ≥ 100% | Fondo rojo intenso | 🚨 CONDIMENTOS AGOTADOS |
+| 50-79% | Ámbar | ⚠️ Preparar condimentos — N/capacidad pollos |
+| 80-99% | Rojo | 🔴 Condimentos críticos |
+| ≥ 100% | Rojo intenso | 🚨 CONDIMENTOS AGOTADOS |
 
-### Botones por rol
+### Dashboard del Jefe — `/dashboard/jefe` ← NUEVO
 
-**Administrador (9 botones):**
-📦 INVENTARIO · 👥 USUARIOS · ⚙️ CONFIG · 💰 CAJA · 🔓 APERTURA · 🔒 CIERRE · 💳 CRÉDITOS · 📊 REPORTES · 🛒 VENTAS
+**Layout:**
+```
+[Header: KOKORO POLLO | badge 👑 Jefe | logo]
 
-**Empleado (3 botones):**
-📦 INVENTARIO · 💰 CAJA · 🛒 VENTAS
+[KPIs del día — 4 tarjetas]
+  Ventas hoy | Utilidad estimada | En caja ahora | Pedidos hoy
+
+[Panel de ALERTAS — aparece solo si hay algo]
+  - Caja sin apertura      → link a /caja/apertura
+  - Pendiente cerrar caja  → link a /caja/cierre (solo si hora >= 18:00)
+  - Créditos vencidos      → link a /creditos
+  - Artículos stock bajo   → link a /inventario
+  - Alerta condimentos     → link a /config#condimentos
+  - Pendiente de liquidar  → link a /ventas
+
+[Resumen del mes — 4 KPIs]
+  Ventas mes | Utilidad mes | Pedidos mes | Ticket promedio
+
+[8 accesos rápidos]
+  Reportes · Usuarios · Config · Auditoría · Caja · Créditos · Inventario · Ventas
+```
+
+**Datos calculados en DashboardController::indexJefe():**
+- `Reporte::resumenDia($hoy)` → ventas, utilidad, pedidos
+- `Caja::getTotal()` → efectivo en caja
+- `Venta::sumPendingLiquidation()` → pendiente
+- `CajaApertura::existeHoy()` + `CajaCierre::existeHoy()` → estado operativo
+- `CreditoEmpleado::resumen()` → créditos vencidos, cartera
+- `Inventario::countCritico()` → artículos bajo mínimo
+- `Reporte::resumenPeriodo($mesDesde, $mesHasta)` → KPIs del mes
+- Configuración → condimentos (ciclo, %, alerta)
 
 ---
 
@@ -313,13 +388,26 @@ GET /logout → session_destroy() → redirect('/')
 
 **Vistas:** `ventas/index.php` · **JS:** `public/js/ventas.js`
 
+### Eliminación de Broaster (Sprint 1)
+
+El negocio únicamente vende **Pollo Asado**. Se eliminó completamente:
+- El selector "¿Cómo lo quiere? Asado / Broaster" (sección `#seccionPreparacion`)
+- La variable `preparacionActual` del JS
+- La función `seleccionarPreparacion()` del JS
+- Los precios Broaster de la BD y de Configuración
+- El nodo anidado `PRECIOS_POLLO['Asado']['corte']` → ahora es `PRECIOS_POLLO['corte']`
+
+**Flujo actual para Pollo Crudo:** seleccionar producto → seleccionar corte directamente → ajustar cantidad → agregar.  
+**Nombre en carrito/factura:** `"Asado — ¼ Pierna-Pernil"`, `"Asado — Medio Pollo"`, etc.
+
 ### Layout pantalla dividida
-- **Columna izquierda (2/5):** Panel de Caja — saldo, movimientos, ajustes, ALSÉ
-- **Columna derecha (3/5):** POS de ventas — selector tipo pedido, productos, configurador, carrito
+
+- **Izquierda (2/5):** Panel de Caja — saldo, movimientos, añadir/retirar, ALSÉ
+- **Derecha (3/5):** POS — tipo pedido, productos, configurador, carrito
 
 ### Flujo completo de una venta
 
-**Paso 0 — Tipo de pedido** (selector persistente para toda la sesión)
+**Paso 0 — Tipo de pedido**
 ```
 [🏠 Local]  [🛵 Para llevar]
 
@@ -329,202 +417,79 @@ Si "Para llevar": aparece panel verde con campos opcionales:
 
 **Paso 1 — Seleccionar producto**
 ```
-Clic en tarjeta de producto
-  ├─► Sin stock → bloqueado (opacity .4, cursor not-allowed)
-  └─► Con stock → abre configPanel con nombre, precio, stock
-        Si Pollo Crudo → muestra selector Preparación + Corte
-        Si otro → corteActual = {Unidad, mult:1} → habilitado directo
+Clic en tarjeta → sin stock: bloqueada; con stock: abre configPanel
+  Si Pollo Crudo → muestra selector de Corte directamente
+  Si otro        → corteActual = {Unidad, mult:1} → habilitado directo
 ```
 
-**Paso 2 — Configurar Pollo Crudo** (solo aplica)
+**Paso 2 — Corte (solo Pollo Crudo)**
 
-| Preparación | Corte | mult | corteKey | Cuartos descontados |
-|---|---|---|---|---|
-| Asado / Broaster | ¼ Pierna-Pernil | 1 | cuarto | 1 |
-| Asado / Broaster | ¼ Pechuga-Ala | 1 | cuarto | 1 |
-| Asado / Broaster | Medio Pollo | 2 | medio | 2 |
-| Asado / Broaster | Pollo Entero | 4 | entero | 4 |
+| Botón | mult | corteKey | Cuartos descontados |
+|---|---|---|---|
+| ¼ Pierna-Pernil | 1 | cuarto | 1 |
+| ¼ Pechuga-Ala | 1 | cuarto | 1 |
+| Medio Pollo | 2 | medio | 2 |
+| Pollo Entero | 4 | entero | 4 |
 
-**Cálculo de precio:**
-```
-Si precio_configurado (tabla config) > 0:
-    subtotal = precioCorte × cantidad_pedida
-    precio_servidor = precioCorte / mult
+Precio: `PRECIOS_POLLO['cuarto' | 'medio' | 'entero']` (de configuración). Si es 0 → usa `precio_inventario × cuartos`.
 
-Si precio = 0 (sin configurar):
-    subtotal = precio_por_cuarto × (cantidad × mult)
-    precio_servidor = precio_por_cuarto
-```
+**Pasos 3-7:** igual que versión anterior (cantidad, carrito, acompañamientos, registrar pedido, liquidar a caja).
 
-**Paso 3 — Ajustar cantidad**
-- Botones `−` / `+` o input directo
-- Alerta roja si `cantidad × mult > stock disponible` (incluyendo lo ya en carrito)
+### Empaque automático para llevar (Sprint 2)
 
-**Paso 4 — Agregar al carrito**
-```
-agregarAlCarrito()
-  ├─► push al array carrito con: uid, id, nombre, corte, preparacion,
-  │   cantForm, cantInv, precio, subtotal, costoUnit, costoSubtotal, margenSubtotal
-  │
-  ├─► Si Pollo Crudo → mostrarAcomp() (acompañamientos rápidos)
-  └─► Si otro → renderCarrito()
-```
-
-**Paso 4b — Acompañamientos** (solo tras agregar Pollo Crudo)
-```
-Panel verde con productos de: Papas, Acompañamientos, Salsas, Bebidas (stock > 0)
-  ├─► Toggle visual por ítem (borde dorado = seleccionado)
-  ├─► "✅ Listo" → agrega seleccionados (1 ud c/u, precio inventario)
-  └─► "✕ Saltar" → cierra sin agregar
-```
-
-**Paso 5 — Carrito**
-- Lista de ítems con nombre, preparación/corte, cantidad, precio
-- Costo de inventario + margen por ítem
-- Resumen: Venta | Costo | Margen
-- Botón `×` para eliminar ítem individual
-- "🗑️ Vaciar" para limpiar todo
-
-**Paso 6 — Registrar pedido**
-```
-registrarPedido()
-  ├─► Genera orden_id aleatorio (alfanum 10 chars)
-  ├─► Para cada ítem:
-  │     POST /ventas/store (JSON) con:
-  │       orden_id, inventario_id, cantidad(cuartos), precio_unitario,
-  │       tipo_pedido, nombre_cliente, telefono, direccion
-  │
-  │     Servidor (transacción MySQL):
-  │       SELECT cantidad FOR UPDATE (bloqueo de fila)
-  │       Verifica stock >= cantidad
-  │       UPDATE inventario SET cantidad = cantidad - ?
-  │       INSERT INTO ventas (todos los campos)
-  │       COMMIT
-  │
-  ├─► Si error de stock → ítem queda en carrito, alerta visible
-  ├─► Si OK → actualiza stock en tarjeta UI en tiempo real
-  └─► Carrito vacío → historial visual + panel liquidación incrementa
-```
-
-**Paso 7 — Liquidar a caja**
-```
-POST /ventas/liquidar
-  ├─► SUM(total) WHERE liquidado = 0
-  ├─► UPDATE caja SET total = total + pendiente
-  ├─► INSERT historial_caja (tipo='ingreso', concepto='Liquidación: N venta(s)')
-  └─► UPDATE ventas SET liquidado = 1 WHERE liquidado = 0
-```
-
-**Factura del día**
-- Modal con todos los pedidos registrados en la sesión (memoria JS)
-- Muestra tipo (🏠/🛵) por pedido
-- Botón "🖨️ Imprimir" abre ventana nueva con `window.print()`
-
-### Panel de Caja (izquierda en Ventas)
-- Saldo en tiempo real
-- Mini-resumen ingresos/retiros del día
-- Formularios AJAX para Añadir y Retirar (POST `/caja/ajuste`)
-- Tabla de actividad unificada (caja + ventas del día)
-- **Si Admin:** sección ALSÉ con campo valor + motivo (POST `/caja/alse`)
-- Enlace "📋 Gestión completa de caja →"
+Cuando `tipo_pedido = 'llevar'` y el empaque está activado en Config:
+- El JS envía `primer_item: true` solo en el **primer ítem de cada orden**
+- El servidor descuenta 1 unidad del artículo configurado como empaque
+- El UPDATE es atómico (`WHERE cantidad > 0`) — no puede quedar negativo
+- Si el empaque está en stock 0 → la venta continúa, el descuento se omite silenciosamente
+- La tarjeta del artículo empaque se actualiza en tiempo real en el POS (si `empaque_id > 0` en la respuesta)
 
 ---
 
 ## 8. Módulo: Caja
 
-**Vista:** `caja/index.php`
+**Vista:** `caja/index.php` — acceso: Autenticado (todos los roles)
 
-### Pantalla principal `/caja`
+### Pantalla `/caja`
 
-**Elementos:**
-1. **Saldo actual** — bloque blanco grande con `caja.total`
-2. **Mini-resumen del día** — ingresos (verde) y retiros (rojo) de `historial_caja`
-3. **Banner de apertura** (solo Admin):
-   - Sin apertura → banner ámbar "⚠️ Caja sin apertura" + CTA "Abrir Caja →"
-   - Con apertura → banner verde "🔓 CAJA ABIERTA · Base: $X · Usuario · Hora"
-4. **Sección ALSÉ** (solo Admin) — formulario valor + motivo
-5. **Ventas sin liquidar** — banner dorado si hay pendiente, con link a Ventas
-6. **Filtros rápidos de historial** — Hoy · Ayer · Esta semana · Este mes · Todo
-7. **Formularios Añadir / Retirar** — POST form clásico con validación servidor
-8. **Tabla actividad de hoy** — UNION de `historial_caja` + `ventas` del día
+1. Saldo actual — bloque blanco grande con `caja.total`
+2. Mini-resumen del día — ingresos (verde) y retiros (rojo)
+3. Banner de apertura (**Admin+** únicamente):
+   - Sin apertura → ámbar "⚠️ Caja sin apertura" + CTA "Abrir Caja →"
+   - Con apertura → verde "🔓 CAJA ABIERTA · Base: $X · Usuario · Hora"
+4. Sección ALSÉ (**Admin+**) — formulario valor + motivo
+5. Ventas sin liquidar — banner dorado si hay pendiente
+6. Filtros rápidos de historial — Hoy · Ayer · Esta semana · Este mes · Todo
+7. Formularios Añadir / Retirar — POST clásico con validación servidor
+8. Tabla actividad de hoy — UNION historial_caja + ventas
 
-### Flujo Añadir dinero
-```
-POST /caja (accion=anadir)
-  ├─► Valida valor > 0 y concepto
-  ├─► UPDATE caja SET total = total + valor
-  ├─► INSERT historial_caja (tipo='ingreso')
-  └─► flash('exito') + redirect('/caja')
-```
-
-### Flujo Retirar dinero
-```
-POST /caja (accion=retirar)
-  ├─► Valida valor > 0 y concepto
-  ├─► Verifica total >= valor
-  ├─► UPDATE caja SET total = total - valor
-  ├─► INSERT historial_caja (tipo='retiro')
-  └─► flash('exito') + redirect('/caja')
-```
-
-### GET /caja/resumen (JSON)
-Usado por Ventas para actualizar el panel de caja en tiempo real.
-Devuelve: `{ total, ingresosHoy, retirosHoy, ventasPendientes, movimientos[] }`
+> **Nota:** `$esAdmin` en CajaController usa `$rol->atLeast(Rol::Administrador)` — Jefe también ve el banner y la sección ALSÉ.
 
 ---
 
 ## 9. Módulo: Apertura de Caja
 
-**Vista:** `caja/apertura.php` · **Solo Admin**
+**Vista:** `caja/apertura.php` · **Acceso:** Admin+
 
-### Reglas
-- Una sola apertura permitida por día (UNIQUE KEY en `fecha`)
-- Solo Administrador puede registrarla
-- Si ya existe apertura del día → muestra resumen de solo lectura
-
-### Flujo registrar apertura
-```
-GET /caja/apertura
-  └─► Si existe apertura hoy → muestra resumen (tabla de denominaciones + base)
-      Si no existe → muestra formulario de conteo
-
-POST /caja/apertura
-  ├─► Valida CSRF y que no exista apertura hoy
-  ├─► Calcula base_inicial = SUM(denominacion × cantidad)
-  ├─► Transacción:
-  │     INSERT caja_aperturas (fecha, usuario_id, base_inicial, observaciones)
-  │     INSERT caja_apertura_denominaciones (una fila por denominación > 0)
-  └─► flash('exito') + redirect('/caja/apertura')
-```
-
-### Vista formulario
-- Tabla con las 10 denominaciones COP
-- Input de cantidad por denominación → subtotal calculado en JS en tiempo real
-- Total de la base visible en el pie de la tabla
-- Campo de observaciones opcional
-- Botón "🔓 Registrar Apertura"
-
-### Integración con Caja
-`CajaController::index()` consulta `CajaApertura::getHoy()` y pasa `$aperturaHoy` a la vista de caja, que muestra el banner correspondiente.
+- Una sola apertura por día (UNIQUE KEY en `fecha`)
+- Si ya existe → muestra resumen de solo lectura con denominaciones y base
+- Formulario: tabla de 10 denominaciones COP, subtotales en JS en tiempo real, observaciones
+- POST calcula `base_inicial = SUM(denominacion × cantidad)`, inserta en `caja_aperturas` + `caja_apertura_denominaciones`
 
 ---
 
 ## 10. Módulo: Cierre de Caja
 
-**Vista:** `caja/cierre.php` · **Solo Admin**
-
-### Reglas
-- Requiere que exista apertura del día
-- Un solo cierre por día (UNIQUE KEY en `fecha`)
-- No permite editar un cierre ya registrado
+**Vista:** `caja/cierre.php` · **Acceso:** Admin+
 
 ### Fórmula del dinero esperado
+
 ```
 dinero_esperado = base_inicial
-                + ventas (liquidadas del día)
-                + otras_entradas (ingresos manuales, no liquidaciones)
+                + ventas liquidadas del día
+                + otras_entradas (ingresos manuales, excluye liquidaciones)
                 − gastos_caja (retiros manuales del día)
-                − creditos_empleados (créditos entregados hoy)
+                − creditos_empleados (entregados hoy)
                 − alses (ALSÉS del día)
                 − otras_salidas
 
@@ -532,329 +497,245 @@ sobrante = MAX(0, dinero_contado − dinero_esperado)
 faltante  = MAX(0, dinero_esperado − dinero_contado)
 ```
 
-### Flujo
-```
-GET /caja/cierre
-  ├─► Sin apertura del día → redirect /caja/apertura con mensaje
-  ├─► Ya existe cierre → muestra resumen de solo lectura con sobrante/faltante
-  └─► Sin cierre → muestra formulario con 3 secciones:
-        Sección 1: Movimientos del día (precalculados, editables)
-        Sección 2: Arqueo físico (tabla de denominaciones)
-        Sección 3: Resultado en tiempo real (esperado vs contado)
-
-POST /caja/cierre
-  ├─► Valida CSRF, apertura del día y que no exista cierre
-  ├─► Recibe denominaciones del conteo físico
-  ├─► Calcula dinero_contado = SUM(denominacion × cantidad)
-  ├─► Recupera base_inicial de la apertura
-  ├─► Calcula dinero_esperado con fórmula
-  ├─► Calcula sobrante / faltante
-  └─► Transacción: INSERT caja_cierres + caja_cierre_denominaciones
-```
-
-### Vista resultado del cierre
-- ✅ Verde si cuadre exacto
-- 🟢 Verde + monto si sobrante
-- 🔴 Rojo + monto si faltante
+- Requiere apertura del día; si no existe → redirige a `/caja/apertura`
+- Un solo cierre por día (UNIQUE KEY en `fecha`)
+- Vista en 3 secciones: movimientos precalculados (editables) / arqueo físico / resultado en tiempo real
 
 ---
 
 ## 11. Módulo: ALSÉS — Retiros de Seguridad
 
-**Endpoint:** POST `/caja/alse` (JSON) · **Solo Admin**
-
-### Qué es un ALSÉ
-Un **ALSÉ** es un retiro de efectivo por razones de seguridad cuando hay demasiado dinero en caja. Se diferencia de un retiro normal en que:
+**Endpoint:** POST `/caja/alse` (JSON) · **Acceso:** Admin+
 
 | Característica | Retiro normal | ALSÉ |
 |---|---|---|
 | Semántica | Gasto operativo | Traslado de seguridad |
-| Afecta `caja.total` | ✅ Sí | ✅ Sí |
-| Aparece en `historial_caja` | ✅ Sí | ❌ No |
-| Aparece en `retiros_seguridad` | ❌ No | ✅ Sí |
-| Cuenta como gasto en reportes | ✅ Sí | ❌ No |
-| Se incluye en cierre de caja | Línea "gastos_caja" | Línea "alses" |
-
-### Flujo
-```
-POST /caja/alse { valor, motivo } (JSON con header X-CSRF-Token)
-  ├─► Valida Admin, CSRF, valor > 0, motivo no vacío
-  ├─► Verifica caja.total >= valor
-  ├─► Transacción:
-  │     INSERT retiros_seguridad (valor, motivo, usuario_id)
-  │     UPDATE caja SET total = total - valor
-  └─► JSON { status: 'ok', nuevoCajaTotal }
-```
-
-### Integración en la vista de Caja
-Sección visible solo para admin con borde ámbar, formulario inline (valor + motivo), botón "🔒 ALSÉ". Tras registrar, recarga la página.
+| Afecta `caja.total` | ✅ | ✅ |
+| Aparece en `historial_caja` | ✅ | ❌ |
+| Aparece en `retiros_seguridad` | ❌ | ✅ |
+| Cuenta como gasto en reportes | ✅ | ❌ |
+| Línea en cierre de caja | `gastos_caja` | `alses` |
 
 ---
 
 ## 12. Módulo: Créditos a Empleados
 
-**Vista:** `creditos/index.php` · **Solo Admin**
+**Vista:** `creditos/index.php` · **Acceso:** Admin+
 
-### Qué es un crédito
-Préstamo interno a un empleado. Sale de caja, se espera recuperar. No es una venta fiada ni un gasto operativo.
+### Estados
 
-### Estados del crédito
-- `pendiente` — entregado, sin pagar
-- `pagado` — cobrado (ingresó a caja)
-- `vencido` — pasó la fecha de compromiso de pago sin pagar
+- `pendiente` → entregado, sin pagar
+- `pagado` → cobrado (ingresó a caja)
+- `vencido` → pasó `fecha_compromiso_pago` sin pagar
 
-La vista actualiza automáticamente vencidos al cargar (`actualizarVencidos()` compara `fecha_compromiso_pago < CURDATE()`).
+KPIs: Pendientes (cantidad) · Vencidos (cantidad, rojo) · Cartera total (suma pendiente+vencido, ámbar)
 
-### KPIs en la pantalla
-- Pendientes (cantidad)
-- Vencidos (cantidad, fondo rojo)
-- Cartera total (suma pendiente + vencido, fondo ámbar)
-
-### Flujo crear crédito
 ```
-POST /creditos/crear (JSON)
-  ├─► Valida: empleado_id existe, valor > 0, fecha_compromiso válida
-  ├─► Transacción:
-  │     Verifica caja.total >= valor
-  │     INSERT creditos_empleados (estado='pendiente')
-  │     UPDATE caja SET total = total - valor
-  │     INSERT historial_caja (tipo='retiro', concepto='Crédito empleado: {nombre}')
-  └─► JSON { status: 'ok' }
+Crear:  sale de caja + INSERT creditos_empleados + INSERT historial_caja (retiro)
+Pagar:  SELECT FOR UPDATE + verifica estado + entra a caja + INSERT historial_caja (ingreso)
+Vencer: UPDATE estado='vencido' (manual o automático al cargar la vista)
 ```
 
-### Flujo pagar crédito
-```
-POST /creditos/pagar { id } (JSON)
-  ├─► SELECT ... FOR UPDATE (anti doble pago)
-  ├─► Verifica estado = 'pendiente' o 'vencido'
-  ├─► Transacción:
-  │     UPDATE creditos_empleados SET estado='pagado', fecha_pago=CURDATE()
-  │     UPDATE caja SET total = total + valor
-  │     INSERT historial_caja (tipo='ingreso', concepto='Pago crédito: {nombre}')
-  └─► JSON { status: 'ok' }
-```
-
-### Badge de estado en tabla
-- `pendiente` → fondo ámbar oscuro · ⏳
-- `vencido` → fondo rojo oscuro · 🔴
-- `pagado` → fondo verde oscuro · ✅
+**Auditoría:** crear y pagar quedan registrados en la tabla `auditoria`.
 
 ---
 
 ## 13. Módulo: Historial de Movimientos
 
-**Vista:** `historial/index.php`
+**Vista:** `historial/index.php` · **Acceso:** Autenticado
 
-### Ruta
-`GET /historial[?desde=YYYY-MM-DD&hasta=YYYY-MM-DD&pagina=N]`
+`GET /historial[?desde=&hasta=&pagina=N]`
 
-### Contenido
-El historial muestra **únicamente movimientos de `historial_caja`** (ingresos y retiros manuales + liquidaciones de ventas). Los ALSÉS van a tabla separada y las ventas individuales se ven en el POS.
-
-### Pantalla
-1. **Filtro de fechas** — Desde / Hasta → recarga con GET
-2. **Resumen del período** (cuando hay registros):
-   - Verde: total ingresos
-   - Rojo: total retiros
-   - Oscuro: neto (ingresos − retiros)
-3. **Tabla paginada** (50 registros/página):
-   - ID · Fecha y hora · Tipo (badge) · Valor (+/-) · Concepto · Usuario
-4. **Paginación** Anterior / Siguiente
+Contenido: solo movimientos de `historial_caja`. Tabla paginada (50/página) con resumen ingresos/retiros/neto del período.
 
 ---
 
 ## 14. Módulo: Inventario
 
-**Vista:** `inventario/index.php`
+**Vista:** `inventario/index.php` · **Acceso:** Autenticado
 
-### Categorías (ENUM en BD)
-| Categoría | Emoji | Regla especial |
-|---|---|---|
-| Pollo Crudo | 🐔 | Cuartos internos, pollos en UI |
-| Papas | 🥔 | — |
-| Acompañamientos | 🍌 | — |
-| Salsas | 🫙 | — |
-| Bebidas | 🥤 | — |
-| Otros | 📦 | — |
+### Categorías ENUM
+
+`Pollo Crudo` · `Papas` · `Acompañamientos` · `Salsas` · `Bebidas` · `Otros`
 
 ### Lógica especial Pollo Crudo
-- **Form → BD:** cantidad_pollos × 4 = cuartos; costo_pollo ÷ 4 = costo_cuarto
-- **BD → Form (editar):** cuartos ÷ 4 = pollos; costo_cuarto × 4 = costo_pollo
-- **BD → Tabla:** `intdiv(cuartos, 4) pollos + (cuartos % 4) cuartos`
+
+- Form → BD: `pollos × 4 = cuartos`; `costo_pollo ÷ 4 = costo_cuarto`
+- BD → Form: `cuartos ÷ 4 = pollos`; `costo_cuarto × 4 = costo_pollo`
+- BD → Tabla: `intdiv(cuartos, 4) pollos + (cuartos % 4) cuartos`
+
+### Métodos nuevos en `Inventario` model
+
+- `deductOne(int $id): bool` — descuenta 1 unidad atómicamente (`WHERE cantidad > 0`), retorna `false` si estaba en 0
+- `countCritico(): int` — artículos con stock bajo (Pollo Crudo < 4 cuartos; otros ≤ 5 uds)
 
 ### Indicadores de stock bajo
+
 - Pollo Crudo: rojo si < 4 cuartos (menos de 1 pollo entero)
 - Otros: rojo si ≤ 5 unidades
 
-### Flujos CRUD
-```
-CREAR: POST /inventario/store → validar → INSERT → flash + redirect
-EDITAR: GET /inventario?editar=id → pre-llena form
-ACTUALIZAR: POST /inventario/update → UPDATE → flash + redirect
-ELIMINAR: Confirm modal JS → POST /inventario/delete
-          Si FK violation (ventas) → flash('error') — no se elimina
-```
-
-### Buscador
-`GET /inventario?q=término` → `LIKE %término%` en campo `articulo`
+**Auditoría:** crear, editar y eliminar artículos quedan registrados en `auditoria`.
 
 ---
 
 ## 15. Módulo: Usuarios
 
-**Vista:** `usuarios/index.php` · **Solo Admin**
+**Vista:** `usuarios/index.php` · **Acceso:** Jefe
 
-### Pantalla
-- Tabla cargada por AJAX (`fetch /usuarios/list`) al abrir
-- Modal único reutilizado para crear y editar
+### Roles disponibles en el dropdown
 
-### Flujo crear
-```
-POST /usuarios/create (JSON)
-  ├─► Valida campos no vacíos
-  ├─► Verifica usuario no duplicado (UNIQUE)
-  ├─► password_hash(clave, PASSWORD_BCRYPT)
-  ├─► INSERT usuarios
-  └─► JSON { status: 'ok' | 'error', mensaje }
-```
-
-### Flujo editar
-- Modal pre-llenado con datos del usuario
-- Checkbox "Cambiar contraseña" — oculta/muestra campo clave
-- Si no se cambia clave → UPDATE solo nombre, usuario, rol
-
-### Flujo eliminar
-- SweetAlert2 confirmación → POST /usuarios/delete → DELETE FROM usuarios
+- **Jefe** (lila/púrpura) — acceso total
+- **Administrador** (ámbar) — operativa sin config/usuarios/reportes
+- **Empleado** (azul) — ventas, caja, inventario
 
 ### Badges de rol
-- Administrador → fondo ámbar oscuro (#78350f) · texto ámbar (#fde68a)
-- Empleado → fondo azul oscuro (#1e3a5f) · texto azul claro (#bfdbfe)
+
+| Rol | Fondo | Texto |
+|---|---|---|
+| Jefe | `#4a1942` | `#e879f9` (lila) |
+| Administrador | `#78350f` | `#fde68a` (ámbar) |
+| Empleado | `#1e3a5f` | `#bfdbfe` (azul) |
+
+CRUD por modal AJAX. Eliminar con SweetAlert2. Link "Regresar" usa `$dashboardUrl` del rol activo.
+
+**Auditoría:** crear, editar y eliminar usuarios quedan registrados en `auditoria`.
 
 ---
 
 ## 16. Módulo: Configuración
 
-**Vista:** `config/index.php` · **Solo Admin**
+**Vista:** `config/index.php` · **Acceso:** Jefe
 
-### Sección 1 — Precios de Pollo
+### Sección 1 — Precios de Pollo Asado
 
 | Clave | Descripción |
 |---|---|
-| `precio_asado_cuarto` | Precio de venta ¼ de pollo asado |
-| `precio_asado_medio` | Precio de venta ½ pollo asado |
-| `precio_asado_entero` | Precio de venta pollo entero asado |
-| `precio_broaster_cuarto` | Precio de venta ¼ de pollo broaster |
-| `precio_broaster_medio` | Precio de venta ½ pollo broaster |
-| `precio_broaster_entero` | Precio de venta pollo entero broaster |
+| `precio_asado_cuarto` | Precio venta ¼ de pollo asado |
+| `precio_asado_medio` | Precio venta ½ pollo asado |
+| `precio_asado_entero` | Precio venta pollo entero asado |
 
-Si un precio = 0 → el POS usa como fallback el precio del inventario × cuartos.
+Si precio = 0 → el POS usa fallback `precio_inventario × cuartos`.
 
 ### Sección 2 — Capacidad de condimentos
-- Campo `condimentos_pollos_por_ciclo` — default 1000
-- Se guarda junto con los precios en el mismo POST `/config`
 
-### Sección 3 — Estado del ciclo de condimentos
-- Barra de progreso de 0% a 100%
-- Muestra: N / capacidad pollos · porcentaje
-- Estado visual con colores:
-  - Verde (< 50%) · Ámbar (50-79%) · Rojo (80-99%) · Rojo intenso (≥ 100%)
-- Botón **"🔄 Reiniciar ciclo"** → POST `/config/reset-condimentos`
-  - Guarda `condimentos_cuartos_offset = cuartos_vendidos_totales_actuales`
-  - El contador vuelve a 0 pollos desde ese momento
+`condimentos_pollos_por_ciclo` (default 1000) — cuántos pollos alcanza una preparación de condimentos.
+
+### Sección 3 — Empaque automático ← NUEVO
+
+- Checkbox **"Activar descuento automático de empaque"** → `empaque_activo = '1'`
+- Dropdown con todos los artículos del inventario → `empaque_inventario_id`
+- Efecto: en cada pedido Para llevar, se descuenta 1 unidad del artículo seleccionado sin ningún clic extra del cajero
+
+### Sección 4 — Estado del ciclo de condimentos
+
+Barra de progreso + badge de estado + botón **"🔄 Reiniciar ciclo"**
+
+**Auditoría:** cada precio que cambia genera un registro en `auditoria` con valor anterior y nuevo.
 
 ---
 
 ## 17. Módulo: Reportes Gerenciales
 
-**Vistas:** `reportes/` · **Solo Admin**
+**Vistas:** `reportes/` · **Acceso:** Jefe · **CSV:** todos los reportes tienen botón 📥
 
-### Menú `/reportes`
-4 tarjetas de acceso: Diario · Semanal · Mensual · Top Productos
+### Menú `/reportes` — 5 tarjetas
+
+Diario · Semanal · Mensual · Top Productos · Por Empleado
 
 ---
 
 ### Reporte Diario `/reportes/diario?fecha=YYYY-MM-DD`
 
-**KPIs superiores:**
-- Ventas totales (verde)
-- Costo productos (inventario)
-- Utilidad estimada (ventas − costo)
-- Margen %
-
-**Pedidos por tipo:**
-- Total pedidos · Local · Para llevar (panel verde)
-
-**Movimientos de caja del día:**
-- Ingresos manuales · Gastos operativos · Créditos empleados · ALSÉS
-
-**Ventas por hora** — barras horizontales proporcionales con total y pedidos
-
-**Top 10 productos del día** — tabla con: #, producto, uds, ingresos, costo, margen
-
-**Navegación:** ← Día anterior / Día siguiente →
+KPIs: Ventas, Costo, Utilidad, Margen % · Pedidos por tipo (Local/Llevar)  
+Movimientos del día: ingresos, gastos, créditos, ALSÉS  
+Barras por hora · Top 10 productos · Navegación ← día anterior / día siguiente →  
+**CSV:** hora, pedidos, ventas
 
 ---
 
 ### Reporte Semanal `/reportes/semanal?desde=&hasta=`
 
-**Accesos rápidos:** Esta semana · Esta quincena · Semana pasada
-
-**KPIs:**
-- Ventas totales · Utilidad estimada · Margen %
-- Total pedidos · Promedio/día · Días con ventas
-
-**Mejor día** (verde) y **Menor día** (rojo) del período
-
-**Barras por día** — una barra proporcional por día con monto
-
-**Top 10 productos del período**
+Accesos rápidos: Esta semana · Esta quincena · Semana pasada  
+KPIs: Ventas, Utilidad, Margen, Pedidos, Promedio/día, Días con ventas  
+Mejor y menor día · Barras por día · Top 10 productos  
+**CSV:** fecha, pedidos, ventas
 
 ---
 
 ### Reporte Mensual `/reportes/mensual?mes=YYYY-MM`
 
-**Navegación:** ← Mes anterior / Mes siguiente →
-
-**KPIs:** Ventas del mes · Costo · Utilidad · Gastos · Créditos · Pedidos
-
-**Resumen financiero detallado:**
-```
-+ Ventas totales
-+ Ingresos manuales
-− Gastos operativos
-− Créditos empleados
-− ALSÉS
-= Flujo neto estimado
-```
-
-**Barras por día del mes** (escala relativa al día de mayor venta)
-
-**Top 10 productos del mes**
+Navegación ← mes anterior / mes siguiente →  
+KPIs: Ventas, Costo, Utilidad, Gastos, Créditos, Pedidos  
+Resumen financiero: `+ Ventas + Ingresos manuales − Gastos − Créditos − ALSÉS = Flujo neto`  
+Barras por día del mes · Top 10 productos  
+**CSV:** fecha, pedidos, ventas
 
 ---
 
 ### Top Productos `/reportes/productos?desde=&hasta=`
 
-**Accesos rápidos:** Hoy · Este mes · Este año · Todo el tiempo
-
-**Tabla con ranking completo:**
-- 🥇🥈🥉 para el podio
-- Columnas: #, Producto, Categoría, Pedidos, Uds vendidas (barra + número), Ingresos, Costo, Margen
+Accesos rápidos: Hoy · Este mes · Este año · Todo el tiempo  
+Ranking con 🥇🥈🥉 · Columnas: #, Producto, Categoría, Pedidos, Uds vendidas (barra), Ingresos, Costo, Margen  
+**CSV:** #, producto, categoría, pedidos, uds, ingresos, costo, margen
 
 ---
 
-## 18. Seguridad transversal
+### Por Empleado `/reportes/empleados?desde=&hasta=&usuario=` ← NUEVO
+
+Accesos rápidos: Hoy · Esta semana · Este mes  
+Tabla ranking: empleado (con barra proporcional), pedidos, ventas, ticket promedio, 🏠 local, 🛵 llevar, días activo  
+Clic en "📊 Ver" → detalle de ese empleado con barras por día en el período  
+**CSV:** #, empleado, pedidos, ventas, ticket promedio, local, para llevar, días activo
+
+---
+
+### Exportación CSV (todos los reportes)
+
+- Parámetro `?export=csv` en la URL de cualquier reporte
+- Botón **📥 CSV** visible en el pie de cada reporte
+- CSV con BOM UTF-8 (compatible con Excel en Windows)
+- Separador `;` (compatible con Excel Colombia/ES)
+- Nombre de archivo: `tipo_periodo_fechaActual.csv`
+- Sin dependencias externas — PHP nativo `fputcsv`
+
+---
+
+## 18. Módulo: Auditoría Operativa ← NUEVO
+
+**Vista:** `auditoria/index.php` · **Acceso:** Jefe  
+**Ruta:** `GET /auditoria[?modulo=&usuario=&pagina=N]`
+
+### Qué se registra automáticamente
+
+| Módulo | Acciones registradas | Descripción ejemplo |
+|---|---|---|
+| `inventario` | crear, editar, eliminar | "Artículo creado: Papas Grandes (Papas)" |
+| `usuarios` | crear, editar, eliminar | "Usuario creado: cajero1 (Rol: Empleado)" |
+| `config` | editar (solo precios) | "Precio ¼ Asado: $8.000 → $9.500" |
+| `creditos` | crear, pagar | "Crédito $50.000 a empleado id=3" |
+
+### Pantalla
+
+- Filtro por módulo (dropdown de módulos activos en BD) y por usuario (texto)
+- Tabla con badges de acción: crear=verde, editar=ámbar, eliminar=rojo, pagar=azul
+- Paginación 100 registros/página
+- Acceso desde el dashboard del Jefe (botón 🔍 AUDITORÍA)
+
+---
+
+## 19. Seguridad transversal
 
 | Mecanismo | Implementación |
 |---|---|
-| **CSRF** | Token en sesión, meta tag + campo `_token` en forms, header `X-CSRF-Token` en AJAX |
+| **CSRF** | Token en sesión, meta tag + `_token` en forms, header `X-CSRF-Token` en AJAX |
 | **Autenticación** | `AuthMiddleware::handle()` en todos los controladores |
-| **Autorización por rol** | `RoleMiddleware::require(Rol::Administrador)` en rutas admin |
-| **Contraseñas** | `password_hash()` / `password_verify()` con bcrypt (cost default) |
-| **XSS** | `View::escape()` = `htmlspecialchars(ENT_QUOTES\|ENT_SUBSTITUTE)` en toda salida de BD |
+| **Autorización jerárquica** | `Rol::atLeast()` + `RoleMiddleware::require(Rol::X)` — roles superiores heredan permisos |
+| **Contraseñas** | `password_hash()` / `password_verify()` con bcrypt |
+| **XSS** | `View::escape()` = `htmlspecialchars(ENT_QUOTES|ENT_SUBSTITUTE)` en toda salida de BD |
 | **Inyección SQL** | PDO con prepared statements en todos los modelos |
 | **Session fixation** | `Session::regenerate()` tras login exitoso |
-| **Stock concurrente** | `SELECT ... FOR UPDATE` dentro de transacción MySQL en `Venta::store()` |
+| **Stock concurrente** | `SELECT ... FOR UPDATE` dentro de transacción en `Venta::store()` |
+| **Empaque atómico** | `UPDATE inventario SET cantidad = cantidad - 1 WHERE id = ? AND cantidad > 0` |
 | **Doble pago crédito** | `SELECT ... FOR UPDATE` + verificación de estado en `CreditoEmpleado::pagar()` |
 | **Doble apertura** | `UNIQUE KEY uq_apertura_fecha` en `caja_aperturas` |
 | **Doble cierre** | `UNIQUE KEY uq_cierre_fecha` en `caja_cierres` |
@@ -863,138 +744,123 @@ Si un precio = 0 → el POS usa como fallback el precio del inventario × cuarto
 
 ---
 
-## 19. Checklist de verificación
+## 20. Checklist de verificación
 
 ### Autenticación
-- [ ] Login correcto redirige al dashboard según rol
-- [ ] Login incorrecto muestra toast de error sin revelar cuál campo falló
+- [ ] Login correcto redirige: Jefe → `/dashboard/jefe`, Admin → `/dashboard`, Empleado → `/dashboard/empleado`
+- [ ] Login incorrecto muestra toast de error sin revelar qué campo falló
 - [ ] Logout destruye sesión y redirige a `/`
 - [ ] Ruta protegida sin sesión redirige a `/`
-- [ ] Empleado en `/usuarios`, `/config`, `/reportes`, `/creditos` → redirigido
 
-### Dashboard
-- [ ] Admin ve 9 botones
-- [ ] Empleado ve 3 botones
-- [ ] Total del día aparece bajo VENTAS cuando hay ventas
-- [ ] Sin alertas de condimentos cuando % < 50%
-- [ ] Alerta ámbar cuando 50% ≤ % < 80%
-- [ ] Alerta roja cuando 80% ≤ % < 100%
-- [ ] Alerta "AGOTADOS" cuando % ≥ 100%
+### Roles y permisos
+- [ ] Empleado en `/usuarios`, `/config`, `/reportes`, `/creditos`, `/auditoria` → redirigido
+- [ ] Administrador en `/usuarios`, `/config`, `/reportes`, `/auditoria` → redirigido
+- [ ] Jefe accede a todos los módulos sin restricción
+- [ ] Jefe en `/caja/apertura`, `/caja/cierre`, `/creditos` → acceso permitido (hereda Admin+)
+- [ ] Badge de rol correcto: Jefe=lila, Admin=ámbar, Empleado=azul
 
-### Ventas / POS
-- [ ] Selector 🏠 Local / 🛵 Para llevar visible y funcional
-- [ ] Al elegir "Para llevar": panel verde con nombre, teléfono, dirección aparece
-- [ ] Al elegir "Local": panel de cliente desaparece
-- [ ] Filtro de categoría "Pollo" muestra solo Pollo Crudo
-- [ ] Producto sin stock opacado y no clickeable
-- [ ] Al seleccionar Pollo Crudo: aparece selector Preparación y Corte
-- [ ] No se puede elegir corte sin haber elegido preparación
-- [ ] Subtotal correcto según precio configurado o precio inventario
-- [ ] Alerta de stock insuficiente si cantidad × mult > disponible
-- [ ] Acompañamientos se ofrecen tras agregar pollo
-- [ ] Ítem puede eliminarse individualmente del carrito
-- [ ] "Registrar Pedido" descuenta stock en BD y actualiza tarjetas UI
-- [ ] `tipo_pedido` + datos de cliente se guardan en BD en cada línea de venta
-- [ ] "Enviar a Caja" marca ventas como liquidadas y registra ingreso en historial_caja
-- [ ] Factura del día muestra tipo de pedido (🏠/🛵) por cada pedido
-- [ ] Imprimir factura abre diálogo de impresión
+### Dashboard del Jefe
+- [ ] KPIs del día visibles: ventas, utilidad, caja, pedidos
+- [ ] Panel de alertas aparece solo cuando hay algo relevante
+- [ ] Link a auditoría visible (🔍 AUDITORÍA)
+- [ ] KPIs del mes correctos con ticket promedio
+- [ ] Logout accesible
+
+### Dashboard del Administrador
+- [ ] Ve 6 botones: Inventario, Caja, Ventas, Apertura, Cierre, Créditos
+- [ ] NO ve botones de Usuarios, Config, Reportes, Auditoría
+- [ ] Alerta de condimentos visible (ámbar/rojo) cuando corresponde
+
+### Dashboard del Empleado
+- [ ] Ve solo 3 botones: Inventario, Caja, Ventas
+- [ ] NO ve ningún botón administrativo
+
+### Ventas / POS (post-eliminación Broaster)
+- [ ] NO aparece selector "Asado / Broaster" en ningún lugar
+- [ ] Al seleccionar Pollo Crudo → aparece directamente selector de Corte (sin paso intermedio)
+- [ ] 4 botones de corte: ¼ Pierna, ¼ Pechuga, ½ Pollo, Pollo Entero
+- [ ] Nombre en carrito: "Asado — ¼ Pierna-Pernil" etc.
+- [ ] Precio usa PRECIOS_POLLO['cuarto'/'medio'/'entero'] (estructura plana, sin clave 'Asado')
+- [ ] Selector tipo pedido 🏠 Local / 🛵 Para llevar funcional
+- [ ] Panel de cliente aparece solo con "Para llevar"
+- [ ] Empaque automático descuenta si está activado y tipo=llevar (primer ítem)
+- [ ] Stock del artículo empaque se actualiza en tiempo real en el POS
+- [ ] Liquidar a caja funciona correctamente
+
+### Empaque automático
+- [ ] Checkbox en Config activa/desactiva el descuento
+- [ ] Dropdown muestra todos los artículos del inventario con stock actual
+- [ ] Sin empaque configurado (id=0) → venta normal sin descuento
+- [ ] Con empaque en stock 0 → venta continúa sin error
 
 ### Caja
-- [ ] Saldo actual correcto desde `caja.total`
-- [ ] Admin: banner verde si existe apertura del día
-- [ ] Admin: banner ámbar si no hay apertura
-- [ ] Admin: sección ALSÉ visible con borde ámbar diferenciado
-- [ ] Añadir dinero: saldo sube + registro en historial_caja
-- [ ] Retirar dinero: saldo baja + registro en historial_caja (sin quedar negativo)
-- [ ] ALSÉ: saldo baja + registro en `retiros_seguridad` (no en historial_caja)
-- [ ] Banner dorado de ventas sin liquidar aparece cuando hay pendiente
-- [ ] Tabla de actividad unifica movimientos de caja + ventas del día
+- [ ] Admin Y Jefe ven banner de apertura y sección ALSÉ
+- [ ] Empleado NO ve banner ni ALSÉ
+- [ ] Añadir/retirar dinero funciona
+- [ ] ALSÉ descuenta caja y va a `retiros_seguridad` (no a `historial_caja`)
 
-### Apertura de Caja
-- [ ] Admin puede registrar apertura una sola vez por día
-- [ ] Subtotales se calculan en tiempo real por denominación
-- [ ] Total de la base se actualiza automáticamente
-- [ ] Tras registrar: muestra resumen con base y desglose de denominaciones
-- [ ] Si ya existe apertura: muestra resumen, no muestra formulario
-- [ ] Segundo intento de apertura el mismo día → error
+### Apertura / Cierre
+- [ ] Admin y Jefe pueden abrir y cerrar caja
+- [ ] Segunda apertura el mismo día → error
+- [ ] Cierre sin apertura → redirige a /caja/apertura con mensaje
+- [ ] Fórmula del cierre incluye base + ventas + entradas − gastos − créditos − alsés
 
-### Cierre de Caja
-- [ ] Sin apertura del día → redirige a /caja/apertura con mensaje
-- [ ] Muestra base inicial de la apertura del día
-- [ ] Valores del día precalculados automáticamente (ventas, ingresos, gastos, créditos, ALSÉS)
-- [ ] Cálculo en tiempo real: dinero esperado al cambiar movimientos
-- [ ] Arqueo físico: subtotales por denominación + total contado en tiempo real
-- [ ] Resultado: diferencia en tiempo real (sobrante verde / faltante rojo)
-- [ ] Fórmula correcta: base + ventas + entradas − gastos − créditos − alsés − otras
-- [ ] Un solo cierre por día
-- [ ] Si ya existe cierre: muestra resumen, no muestra formulario
-
-### Créditos a Empleados
-- [ ] Solo aparece botón "Nuevo Crédito" si hay empleados en BD
-- [ ] KPIs: pendientes, vencidos, cartera total correctos
-- [ ] Crear crédito: sale de caja + registro en historial_caja
-- [ ] No puede crear crédito si saldo de caja es insuficiente
-- [ ] Pagar crédito: entra a caja + registro en historial_caja
-- [ ] Sin doble pago (FOR UPDATE + verificación de estado)
-- [ ] Vencer manual: cambia estado a 'vencido'
-- [ ] Al cargar la vista: vencidos automáticos por fecha
-
-### Historial
-- [ ] Sin filtro: todos los registros paginados (50/página)
-- [ ] Filtro por fechas acota correctamente
-- [ ] Resumen muestra ingresos, retiros y neto del período
-- [ ] Paginación Anterior/Siguiente funciona
-- [ ] Liquidaciones aparecen como ingreso con concepto "Liquidación: N venta(s)"
-- [ ] Créditos aparecen como retiro con concepto "Crédito empleado: nombre"
-- [ ] Pagos de crédito aparecen como ingreso con concepto "Pago crédito: nombre"
+### Créditos
+- [ ] Admin y Jefe pueden crear y pagar créditos
+- [ ] Crédito nuevo aparece en auditoría
+- [ ] Pago registrado aparece en auditoría
 
 ### Inventario
-- [ ] Artículo se crea y aparece en tabla
-- [ ] Editar: pre-llena formulario con datos actuales (conversión Pollo Crudo aplicada)
-- [ ] Pollo Crudo: cantidad ingresada × 4 = cuartos en BD
-- [ ] Pollo Crudo: cuartos ÷ 4 = pollos al editar
-- [ ] Stock bajo en rojo (< 4 cuartos para pollo; ≤ 5 uds para otros)
-- [ ] Buscador filtra por nombre parcial
-- [ ] Eliminar pide confirmación antes de borrar
-- [ ] Artículo con ventas asociadas no puede eliminarse (FK RESTRICT → mensaje claro)
+- [ ] Crear artículo → aparece en tabla + registro en auditoría
+- [ ] Editar artículo → cambios guardados + registro en auditoría
+- [ ] Eliminar artículo → pide confirmación + registro en auditoría
+- [ ] Pollo Crudo: conversión pollos ↔ cuartos correcta en form y tabla
 
 ### Usuarios
-- [ ] Tabla carga por AJAX al abrir
-- [ ] Crear usuario con campos completos
-- [ ] Usuario duplicado → error sin crear registro
-- [ ] Editar: campo contraseña oculto por defecto, visible con checkbox
-- [ ] Eliminar → confirmación SweetAlert2
-- [ ] Badges de rol correctos (ámbar = admin, azul = empleado)
+- [ ] Crear usuario → tabla cargada + registro en auditoría
+- [ ] Editar usuario → cambios guardados + registro en auditoría
+- [ ] Eliminar usuario → SweetAlert2 + registro en auditoría
+- [ ] Dropdown de rol muestra las 3 opciones: Jefe, Administrador, Empleado
 
 ### Configuración
-- [ ] Los 6 precios se guardan y persisten
-- [ ] Precio 0 → POS usa fallback de inventario
-- [ ] Precio > 0 → POS usa precio configurado para el corte
-- [ ] Capacidad de condimentos se guarda junto con los precios
-- [ ] Barra de progreso muestra % correcto
-- [ ] Botón "Reiniciar ciclo" → contador vuelve a 0 pollos
-- [ ] Estado del ciclo se actualiza inmediatamente tras reiniciar
+- [ ] Precios Broaster NO aparecen (eliminados)
+- [ ] Los 3 precios de Pollo Asado se guardan y persisten
+- [ ] Cambio de precio → registro en auditoría con valor anterior → nuevo
+- [ ] Sección empaque automático visible con checkbox y dropdown
+- [ ] Reiniciar ciclo de condimentos → contador vuelve a 0
 
 ### Reportes Gerenciales
-- [ ] Menú de reportes accesible solo para admin
-- [ ] Diario: KPIs correctos, barras por hora, top productos, navegación de días
-- [ ] Diario: distingue pedidos local vs para llevar
-- [ ] Semanal: rango de fechas libre, accesos rápidos (semana/quincena)
-- [ ] Semanal: mejor y menor día resaltados
-- [ ] Mensual: navegación entre meses con `<input type="month">`
-- [ ] Mensual: resumen financiero con todas las líneas
-- [ ] Top Productos: ranking con podio 🥇🥈🥉, barras proporcionales
-- [ ] Top Productos: filtrable por cualquier rango de fechas
+- [ ] Menú de reportes muestra 5 tarjetas (incluye Por Empleado)
+- [ ] Diario: KPIs, barras por hora, top productos, navegación de días
+- [ ] Semanal: rango libre, mejor y menor día, barras por día
+- [ ] Mensual: navegación entre meses, resumen financiero completo
+- [ ] Top Productos: ranking con podio 🥇🥈🥉
+- [ ] Por Empleado: ranking con barra proporcional, drill-down por día
+- [ ] Botón 📥 CSV visible en todos los reportes
+- [ ] CSV descargado compatible con Excel (BOM UTF-8, separador `;`)
+
+### Auditoría
+- [ ] Accesible solo para Jefe (Admin y Empleado redirigidos)
+- [ ] Tabla vacía si aún no se realizaron acciones auditadas
+- [ ] Filtro por módulo y por usuario funciona
+- [ ] Badges de acción con colores correctos (verde/ámbar/rojo/azul)
+- [ ] Paginación funciona correctamente
 
 ### Seguridad
 - [ ] Todo POST tiene campo `_token` oculto
 - [ ] Todo AJAX incluye header `X-CSRF-Token`
 - [ ] Token inválido → 403
-- [ ] `<script>alert(1)</script>` en campos de texto → escapa correctamente
-- [ ] Acceso a ruta admin como empleado → redirige
-- [ ] URL con `../../../etc` → no expone archivos del servidor
+- [ ] `<script>alert(1)</script>` en campos → escapa correctamente
+- [ ] Acceso a ruta Jefe como Admin → redirige
+- [ ] Acceso a ruta Admin+ como Empleado → redirige
 
 ---
 
-*Sistema Kokoro Pollo v2.0 · Documentado el 2026-06-01*  
-*Sprint 1: Apertura, Cierre, Créditos, ALSÉS · Sprint 2: Para Llevar, Condimentos · Sprint 3: Reportes*
+*Sistema Kokoro Pollo v3.0 · Documentado el 2026-06-01*
+
+**Historial de sprints:**
+- v1.0: Autenticación, Inventario, Caja, Ventas POS, Historial, Usuarios, Configuración
+- v2.0: Apertura, Cierre, Créditos, ALSÉS, Para Llevar, Condimentos, Reportes (Diario/Semanal/Mensual/Productos)
+- v3.0 — **Sprint 1:** Rol Jefe (jerarquía 3 niveles), Eliminación Broaster, 3 dashboards diferenciados
+- v3.0 — **Sprint 2:** Ventas por Empleado, Empaques automáticos
+- v3.0 — **Sprint 3:** Auditoría operativa, Exportación CSV en 5 reportes

@@ -18,13 +18,13 @@ final class Reporte
         // Ventas: total, pedidos, por tipo
         $stmt = $pdo->prepare(
             "SELECT
-                COALESCE(SUM(v.total), 0)                          AS total_ventas,
-                COALESCE(SUM(v.cantidad * i.valor), 0)             AS costo_ventas,
-                COUNT(DISTINCT v.orden_id)                         AS total_pedidos,
+                COALESCE(SUM(v.total), 0)                                    AS total_ventas,
+                COALESCE(SUM(v.cantidad * COALESCE(i.valor, 0)), 0)          AS costo_ventas,
+                COUNT(DISTINCT v.orden_id)                                   AS total_pedidos,
                 COUNT(DISTINCT CASE WHEN v.tipo_pedido='llevar' THEN v.orden_id END) AS pedidos_llevar,
                 COUNT(DISTINCT CASE WHEN v.tipo_pedido='local'  THEN v.orden_id END) AS pedidos_local
              FROM ventas v
-             JOIN inventario i ON i.id = v.inventario_id
+             LEFT JOIN inventario i ON i.id = v.inventario_id
              WHERE DATE(v.fecha) = ?"
         );
         $stmt->execute([$fecha]);
@@ -102,16 +102,17 @@ final class Reporte
     public function topProductosDia(string $fecha): array
     {
         $stmt = Database::getInstance()->prepare(
-            'SELECT i.articulo, i.categoria,
-                    SUM(v.cantidad)       AS uds_vendidas,
-                    SUM(v.total)          AS ingresos,
-                    SUM(v.cantidad * i.valor) AS costo
+            "SELECT COALESCE(i.articulo, v.item_descripcion, 'Porción') AS articulo,
+                    COALESCE(i.categoria, 'Porciones') AS categoria,
+                    SUM(v.cantidad)                         AS uds_vendidas,
+                    SUM(v.total)                            AS ingresos,
+                    SUM(v.cantidad * COALESCE(i.valor, 0))  AS costo
              FROM ventas v
-             JOIN inventario i ON i.id = v.inventario_id
+             LEFT JOIN inventario i ON i.id = v.inventario_id
              WHERE DATE(v.fecha) = ?
-             GROUP BY v.inventario_id
+             GROUP BY v.inventario_id, v.item_descripcion
              ORDER BY ingresos DESC
-             LIMIT 10'
+             LIMIT 10"
         );
         $stmt->execute([$fecha]);
         return $stmt->fetchAll();
@@ -142,12 +143,12 @@ final class Reporte
 
         $stmt = $pdo->prepare(
             'SELECT
-                COALESCE(SUM(v.total), 0)              AS total_ventas,
-                COALESCE(SUM(v.cantidad * i.valor), 0) AS costo_ventas,
-                COUNT(DISTINCT v.orden_id)              AS total_pedidos,
-                COUNT(DISTINCT DATE(v.fecha))           AS dias_con_ventas
+                COALESCE(SUM(v.total), 0)                           AS total_ventas,
+                COALESCE(SUM(v.cantidad * COALESCE(i.valor, 0)), 0) AS costo_ventas,
+                COUNT(DISTINCT v.orden_id)                          AS total_pedidos,
+                COUNT(DISTINCT DATE(v.fecha))                       AS dias_con_ventas
              FROM ventas v
-             JOIN inventario i ON i.id = v.inventario_id
+             LEFT JOIN inventario i ON i.id = v.inventario_id
              WHERE v.fecha BETWEEN ? AND ?'
         );
         $stmt->execute([$desde . ' 00:00:00', $hasta . ' 23:59:59']);
@@ -197,17 +198,18 @@ final class Reporte
     public function topProductos(string $desde, string $hasta, int $limite = 15): array
     {
         $stmt = Database::getInstance()->prepare(
-            'SELECT i.articulo, i.categoria,
-                    SUM(v.cantidad)           AS uds_vendidas,
-                    SUM(v.total)              AS ingresos,
-                    SUM(v.cantidad * i.valor) AS costo,
-                    COUNT(DISTINCT v.orden_id) AS pedidos
+            "SELECT COALESCE(i.articulo, v.item_descripcion, 'Porción') AS articulo,
+                    COALESCE(i.categoria, 'Porciones')                  AS categoria,
+                    SUM(v.cantidad)                                     AS uds_vendidas,
+                    SUM(v.total)                                        AS ingresos,
+                    SUM(v.cantidad * COALESCE(i.valor, 0))              AS costo,
+                    COUNT(DISTINCT v.orden_id)                          AS pedidos
              FROM ventas v
-             JOIN inventario i ON i.id = v.inventario_id
+             LEFT JOIN inventario i ON i.id = v.inventario_id
              WHERE v.fecha BETWEEN ? AND ?
-             GROUP BY v.inventario_id
+             GROUP BY v.inventario_id, v.item_descripcion
              ORDER BY uds_vendidas DESC
-             LIMIT ?'
+             LIMIT ?"
         );
         $stmt->execute([$desde . ' 00:00:00', $hasta . ' 23:59:59', $limite]);
         return $stmt->fetchAll();

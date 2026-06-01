@@ -27,7 +27,37 @@ final class VentasController
         $hoy = date('Y-m-d');
 
         $productos = (new Inventario())->forSelect();
-        $productosJson    = json_encode(array_values($productos), JSON_UNESCAPED_UNICODE);
+
+        // Porciones virtuales (independientes del inventario)
+        $porcCfg = (new Configuracion())->getMany([
+            'porcion_papa_activa',     'porcion_papa_precio',
+            'porcion_francesa_activa', 'porcion_francesa_precio',
+            'porcion_maduro_activa',   'porcion_maduro_precio',
+        ]);
+        $porciones = [
+            -1 => ['nombre' => 'Porción Papa Cocida', 'key' => 'papa',     'emoji' => '🥔'],
+            -2 => ['nombre' => 'Porción Francesa',    'key' => 'francesa', 'emoji' => '🍟'],
+            -3 => ['nombre' => 'Porción de Maduro',   'key' => 'maduro',   'emoji' => '🍌'],
+        ];
+        $virtuales = [];
+        foreach ($porciones as $vid => $info) {
+            $k      = $info['key'];
+            $activa = ($porcCfg["porcion_{$k}_activa"] ?? '0') === '1';
+            $precio = (float) ($porcCfg["porcion_{$k}_precio"] ?? 0);
+            if ($activa) {
+                $virtuales[] = [
+                    'id'        => $vid,
+                    'articulo'  => $info['nombre'],
+                    'categoria' => 'Acompañamientos',
+                    'cantidad'  => 9999,
+                    'valor'     => $precio,
+                    'es_virtual'=> true,
+                ];
+            }
+        }
+        // Virtuales van al inicio para que se vean primero en el filtro "Todos"
+        $productos     = array_merge($virtuales, $productos);
+        $productosJson = json_encode(array_values($productos), JSON_UNESCAPED_UNICODE);
         $venta            = new Venta();
         $totalDia         = $venta->sumToday();
         $pendienteLiquidacion = $venta->sumPendingLiquidation();
@@ -79,6 +109,7 @@ final class VentasController
             'inventarioId'   => $inventarioId,
             'cantidad'       => $cantidad,
             'precioUnitario' => $precioUnitario,
+            'itemDescripcion'=> $itemDescripcion,
         ] = $this->validateVentaInput($json);
 
         $tipoPedido    = in_array($json['tipo_pedido'] ?? 'local', ['local', 'llevar'], true)
@@ -98,16 +129,17 @@ final class VentasController
 
         try {
             $ventaId = (new Venta())->store(
-                ordenId:        $ordenId,
-                inventarioId:   $inventarioId,
-                cantidad:       $cantidad,
-                precioUnitario: $precioUnitario,
-                total:          $total,
-                usuario:        $usuario,
-                tipoPedido:     $tipoPedido,
-                nombreCliente:  $nombreCliente,
-                telefono:       $telefono,
-                direccion:      $direccion,
+                ordenId:         $ordenId,
+                inventarioId:    $inventarioId,
+                cantidad:        $cantidad,
+                precioUnitario:  $precioUnitario,
+                total:           $total,
+                usuario:         $usuario,
+                tipoPedido:      $tipoPedido,
+                nombreCliente:   $nombreCliente,
+                telefono:        $telefono,
+                direccion:       $direccion,
+                itemDescripcion: $itemDescripcion,
             );
 
             // Descontar empaque automático en el primer ítem de cada pedido para llevar
@@ -181,14 +213,20 @@ final class VentasController
     private function validateVentaInput(array $data): array
     {
         $ordenId        = substr(preg_replace('/[^a-zA-Z0-9]/', '', (string) ($data['orden_id'] ?? '')), 0, 12);
-        $inventarioId   = (int) ($data['inventario_id']   ?? 0);
+        $rawId          = $data['inventario_id'] ?? null;
         $cantidad       = (int) ($data['cantidad']         ?? 0);
         $precioUnitario = (float) ($data['precio_unitario'] ?? 0);
 
-        if ($inventarioId <= 0 || $cantidad <= 0 || $precioUnitario <= 0) {
+        // inventario_id null = porción virtual; negativo = también virtual (del cliente JS)
+        $inventarioId   = ($rawId === null || (int)$rawId <= 0) ? null : (int) $rawId;
+        $itemDescripcion = $inventarioId === null
+            ? substr(trim((string) ($data['item_descripcion'] ?? '')), 0, 150)
+            : null;
+
+        if ($cantidad <= 0 || $precioUnitario <= 0) {
             Response::json(['status' => 'error', 'mensaje' => 'Datos inválidos.'], code: 422);
         }
 
-        return compact('ordenId', 'inventarioId', 'cantidad', 'precioUnitario');
+        return compact('ordenId', 'inventarioId', 'cantidad', 'precioUnitario', 'itemDescripcion');
     }
 }

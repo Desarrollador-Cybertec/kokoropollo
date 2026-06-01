@@ -343,18 +343,20 @@ async function registrarPedido() {
     let totalPedido  = 0;
 
     for (let idx = 0; idx < carrito.length; idx++) {
-        const item = carrito[idx];
+        const item    = carrito[idx];
+        const esVirtual = item.id < 0;
         try {
             const res = await fetch('/ventas/store', {
                 method:  'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
                 body:    JSON.stringify({
-                    orden_id:        ordenId,
-                    inventario_id:   item.id,
-                    cantidad:        item.cantInv,
-                    precio_unitario: item.precio,
-                    tipo_pedido:     tipoPedidoActual,
-                    primer_item:     idx === 0,
+                    orden_id:         ordenId,
+                    inventario_id:    esVirtual ? null : item.id,
+                    item_descripcion: esVirtual ? item.nombre : null,
+                    cantidad:         item.cantInv,
+                    precio_unitario:  item.precio,
+                    tipo_pedido:      tipoPedidoActual,
+                    primer_item:      idx === 0,
                     ...getDatosCliente(),
                 }),
             });
@@ -364,7 +366,7 @@ async function registrarPedido() {
             } else {
                 registrados.push(item);
                 totalPedido += item.subtotal;
-                actualizarStockCard(item.id, item.cantInv);
+                if (!esVirtual) actualizarStockCard(item.id, item.cantInv);
                 if (data.empaque_id > 0) actualizarStockCard(data.empaque_id, 1);
             }
         } catch {

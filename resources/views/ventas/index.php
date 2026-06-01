@@ -210,18 +210,25 @@ body { background: linear-gradient(135deg,#3b0a0a 0%,#4a0e0e 40%,#2b1a1a 100%); 
 
             <div id="gridProductos" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <?php foreach ($productos as $p): ?>
-                    <div class="prod-card <?= (int)$p['cantidad'] <= 0 ? 'sin-stock' : '' ?>"
+                    <?php
+                    $esVirtual  = ($p['id'] < 0 || ($p['es_virtual'] ?? false));
+                    $sinStock   = !$esVirtual && (int)$p['cantidad'] <= 0;
+                    ?>
+                    <div class="prod-card <?= $sinStock ? 'sin-stock' : '' ?>"
                          data-id="<?= (int)$p['id'] ?>"
                          data-nombre="<?= View::escape($p['articulo']) ?>"
                          data-precio="<?= (float)$p['valor'] ?>"
-                         data-stock="<?= (int)$p['cantidad'] ?>"
+                         data-stock="<?= $esVirtual ? 9999 : (int)$p['cantidad'] ?>"
                          data-cat="<?= View::escape($p['categoria']) ?>"
                          onclick="seleccionarProducto(this)">
                         <div class="cat-emoji">
                             <?= $categoriasConfig[$p['categoria']]['emoji'] ?? '📦' ?>
                         </div>
                         <div class="prod-nom"><?= View::escape($p['articulo']) ?></div>
-                        <?php if ($p['categoria'] === 'Pollo Crudo'): ?>
+                        <?php if ($esVirtual): ?>
+                            <div class="prod-prec">$<?= number_format((float)$p['valor'], 0, ',', '.') ?></div>
+                            <div class="prod-stk text-green-400">Disponible</div>
+                        <?php elseif ($p['categoria'] === 'Pollo Crudo'): ?>
                             <div class="prod-prec">Costo: $<?= number_format((float)$p['valor'] * 4, 0, ',', '.') ?>/pollo</div>
                             <div class="prod-stk <?= (int)$p['cantidad'] <= 4 ? 'text-red-400' : 'text-green-400' ?>">
                                 <?= intdiv((int)$p['cantidad'], 4) ?> pollos (<?= (int)$p['cantidad'] ?> cuartos)

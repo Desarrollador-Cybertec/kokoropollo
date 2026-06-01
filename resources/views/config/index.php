@@ -5,6 +5,7 @@ $empaqueActivo       = $empaqueActivo       ?? '0';
 $empaqueInventarioId = $empaqueInventarioId ?? '0';
 $inventarioItems     = $inventarioItems     ?? [];
 $dashboardUrl        = $dashboardUrl        ?? '/dashboard';
+$porcionCfg          = $porcionCfg          ?? [];
 
 $pageTitle = 'Configuración — Kokoro Pollo';
 require dirname(__DIR__) . '/partials/head.php';
@@ -92,6 +93,42 @@ require dirname(__DIR__) . '/partials/head.php';
                 </div>
                 <span class="text-base font-semibold" style="color:#9ca3af;">pollos / ciclo</span>
             </div>
+        </div>
+
+        <!-- Porciones especiales -->
+        <div class="rounded-2xl shadow-xl p-6" style="background-color:var(--rojo-card);">
+            <h2 class="text-xl font-black mb-2 flex items-center gap-2" style="color:var(--oro);">
+                🍟 Porciones especiales en ventas
+            </h2>
+            <p class="text-xs mb-5" style="color:#9ca3af;">
+                Activa las porciones que ofreces y fija su precio de venta. Aparecen en el panel de Ventas.
+            </p>
+            <?php
+            $porciones = [
+                'papa'     => ['🥔', 'Porción Papa Cocida'],
+                'francesa' => ['🍟', 'Porción Francesa'],
+                'maduro'   => ['🍌', 'Porción de Maduro'],
+            ];
+            foreach ($porciones as $k => [$icon, $label]):
+                $activa = ($porcionCfg["porcion_{$k}_activa"] ?? '0') === '1';
+                $precio = (float)($porcionCfg["porcion_{$k}_precio"] ?? 0);
+            ?>
+            <div class="flex items-center gap-4 mb-4 flex-wrap">
+                <label class="flex items-center gap-3 cursor-pointer min-w-[220px]">
+                    <input type="checkbox" name="porcion_<?= $k ?>_activa" value="1"
+                           <?= $activa ? 'checked' : '' ?>
+                           class="w-5 h-5 accent-yellow-500">
+                    <span class="font-bold text-white text-base"><?= $icon ?> <?= $label ?></span>
+                </label>
+                <div class="relative flex-1 max-w-[180px]">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 font-bold" style="color:var(--oro);">$</span>
+                    <input type="number" name="porcion_<?= $k ?>_precio" min="0" step="1"
+                           value="<?= number_format($precio, 0, '', '') ?>"
+                           placeholder="Precio de venta"
+                           class="w-full text-xl font-bold pl-7 pr-4 py-3 rounded-xl input-dark">
+                </div>
+            </div>
+            <?php endforeach; ?>
         </div>
 
         <!-- Empaque automático -->

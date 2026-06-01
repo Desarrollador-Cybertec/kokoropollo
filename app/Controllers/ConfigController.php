@@ -31,10 +31,17 @@ final class ConfigController
         $empaqueInventarioId = $cfg->get('empaque_inventario_id', '0');
         $inventarioItems     = (new Inventario())->all();
 
+        $porcionCfg = $cfg->getMany([
+            'porcion_papa_activa',     'porcion_papa_precio',
+            'porcion_francesa_activa', 'porcion_francesa_precio',
+            'porcion_maduro_activa',   'porcion_maduro_precio',
+        ]);
+        // Los IDs de porciones ya no se usan (porciones son virtuales desde migración 010)
+
         $rol = Rol::tryFrom(Session::get('rol') ?? '');
         View::render('config/index', compact(
             'precios', 'pollosEnCiclo', 'pollosPorCiclo', 'pctCondimentos', 'cuartosTotal',
-            'empaqueActivo', 'empaqueInventarioId', 'inventarioItems'
+            'empaqueActivo', 'empaqueInventarioId', 'inventarioItems', 'porcionCfg'
         ) + ['dashboardUrl' => $rol?->dashboard() ?? '/dashboard']);
     }
 
@@ -62,6 +69,12 @@ final class ConfigController
         // Empaque automático para pedidos para llevar
         $datos['empaque_activo']        = $request->post('empaque_activo', '0') === '1' ? '1' : '0';
         $datos['empaque_inventario_id'] = (string) max(0, (int) $request->post('empaque_inventario_id', '0'));
+
+        // Porciones especiales
+        foreach (['papa', 'francesa', 'maduro'] as $k) {
+            $datos["porcion_{$k}_activa"] = $request->post("porcion_{$k}_activa", '0') === '1' ? '1' : '0';
+            $datos["porcion_{$k}_precio"] = (string) max(0, (float) $request->post("porcion_{$k}_precio", '0'));
+        }
 
         $cfg->setMany($datos);
 

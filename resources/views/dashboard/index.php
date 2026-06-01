@@ -80,12 +80,12 @@ require dirname(__DIR__) . '/partials/head.php';
             </a>
 
             <?php if ($esAdmin): ?>
-            <a href="/caja/apertura"
+            <a href="/caja"
                class="flex flex-col items-center gap-3 font-black text-xl rounded-2xl py-8 px-4 shadow-lg transition-all hover:scale-105 active:scale-95 btn-primary">
                 <span class="text-5xl">🔓</span>
                 APERTURA
             </a>
-            <a href="/caja/cierre"
+            <a href="/caja"
                class="flex flex-col items-center gap-3 font-black text-xl rounded-2xl py-8 px-4 shadow-lg transition-all hover:scale-105 active:scale-95 btn-primary">
                 <span class="text-5xl">🔒</span>
                 CIERRE

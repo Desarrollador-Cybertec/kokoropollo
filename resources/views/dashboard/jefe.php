@@ -87,18 +87,18 @@ require dirname(__DIR__) . '/partials/head.php';
         </h3>
         <div class="space-y-2">
             <?php if (!$aperturaHoy): ?>
-            <a href="/caja/apertura" class="flex justify-between items-center px-4 py-3 rounded-xl hover:opacity-80 transition-opacity"
+            <a href="/caja" class="flex justify-between items-center px-4 py-3 rounded-xl hover:opacity-80 transition-opacity"
                style="background-color:#1a1000; border:1px solid #f59e0b;">
                 <span class="font-bold text-yellow-300">🔓 Caja sin apertura hoy</span>
-                <span class="text-xs font-bold text-yellow-400">Abrir →</span>
+                <span class="text-xs font-bold text-yellow-400">Ir a Caja →</span>
             </a>
             <?php endif; ?>
 
-            <?php if ($aperturaHoy && !$cierreHoy && date('H') >= 18): ?>
-            <a href="/caja/cierre" class="flex justify-between items-center px-4 py-3 rounded-xl hover:opacity-80 transition-opacity"
+            <?php if ($aperturaHoy && !$cierreHoy): ?>
+            <a href="/caja" class="flex justify-between items-center px-4 py-3 rounded-xl hover:opacity-80 transition-opacity"
                style="background-color:#1a0000; border:1px solid #ef4444;">
                 <span class="font-bold text-red-300">🔒 Pendiente cerrar caja</span>
-                <span class="text-xs font-bold text-red-400">Cerrar →</span>
+                <span class="text-xs font-bold text-red-400">Ir a Caja →</span>
             </a>
             <?php endif; ?>
 
@@ -218,17 +218,19 @@ require dirname(__DIR__) . '/partials/head.php';
     </div>
 
     <!-- ── Accesos rápidos ──────────────────────────────────── -->
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-4">
         <?php
         $accesos = [
+            ['/ventas',     '🛒', 'VENTAS'],
+            ['/caja',       '💰', 'CAJA'],
+            ['/caja',       '🔓', 'APERTURA'],
+            ['/caja',       '🔒', 'CIERRE'],
             ['/reportes',   '📊', 'REPORTES'],
+            ['/creditos',   '💳', 'CRÉDITOS'],
+            ['/inventario', '📦', 'INVENTARIO'],
             ['/usuarios',   '👥', 'USUARIOS'],
             ['/config',     '⚙️', 'CONFIG'],
             ['/auditoria',  '🔍', 'AUDITORÍA'],
-            ['/caja',       '💰', 'CAJA'],
-            ['/creditos',   '💳', 'CRÉDITOS'],
-            ['/inventario', '📦', 'INVENTARIO'],
-            ['/ventas',     '🛒', 'VENTAS'],
         ];
         foreach ($accesos as [$url, $icon, $label]):
         ?>
