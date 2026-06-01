@@ -88,6 +88,27 @@ final class ConfigController
         Response::redirect('/config');
     }
 
+    public function historialPrecios(Request $request): void
+    {
+        RoleMiddleware::require(Rol::Jefe);
+
+        $pagina    = max(1, (int) $request->get('pagina', '1'));
+        $auditoria = new Auditoria();
+        $registros = $auditoria->filtrar($pagina, 'config');
+        $total     = $auditoria->countFiltrar('config');
+        $totalPags = (int) ceil($total / Auditoria::porPagina());
+
+        $rol = Rol::tryFrom(Session::get('rol') ?? '');
+        View::render('config/historial-precios', [
+            'registros'    => $registros,
+            'total'        => $total,
+            'totalPags'    => $totalPags,
+            'pagina'       => $pagina,
+            'dashboardUrl' => $rol?->dashboard() ?? '/dashboard',
+            'pageTitle'    => 'Historial de Precios — Kokoro Pollo',
+        ]);
+    }
+
     public function resetCondimentos(Request $request): void
     {
         RoleMiddleware::require(Rol::Jefe);

@@ -91,12 +91,35 @@ final class DashboardController
         [$mesDesde, $mesHasta] = Reporte::mesActual();
         $resumenMes = $reporte->resumenPeriodo($mesDesde, $mesHasta);
 
+        // Ticket promedio del día
+        $pedidosHoy      = (int)($resumenHoy['total_pedidos'] ?? 0);
+        $ticketDia       = $pedidosHoy > 0 ? (float)($resumenHoy['total_ventas'] ?? 0) / $pedidosHoy : 0.0;
+
+        // Top empleado del mes
+        $rankingMes      = $reporte->ventasPorEmpleado($mesDesde, $mesHasta);
+        $topEmpleadoMes  = !empty($rankingMes) ? $rankingMes[0] : null;
+
+        // Top producto del mes
+        $topProductosMes = $reporte->topProductos($mesDesde, $mesHasta, 1);
+        $topProductoMes  = !empty($topProductosMes) ? $topProductosMes[0] : null;
+
+        // Variación vs mes anterior
+        $mesAntDesde     = date('Y-m-01', strtotime($mesDesde . ' -1 month'));
+        $mesAntHasta     = date('Y-m-t',  strtotime($mesDesde . ' -1 month'));
+        $resumenMesAnt   = $reporte->resumenPeriodo($mesAntDesde, $mesAntHasta);
+        $ventasMes       = (float)($resumenMes['total_ventas']    ?? 0);
+        $ventasMesAnt    = (float)($resumenMesAnt['total_ventas'] ?? 0);
+        $variacionMes    = $ventasMesAnt > 0
+            ? round(($ventasMes - $ventasMesAnt) / $ventasMesAnt * 100, 1)
+            : null;
+
         View::render('dashboard/jefe', compact(
             'resumenHoy', 'cajaTotal', 'pendiente',
             'aperturaHoy', 'cierreHoy',
             'resumCreditos', 'stockCritico',
             'pollosEnCiclo', 'pollosPorCiclo', 'pctCondimentos', 'alertaCondimentos',
-            'resumenMes', 'mesDesde', 'mesHasta'
+            'resumenMes', 'mesDesde', 'mesHasta',
+            'ticketDia', 'topEmpleadoMes', 'topProductoMes', 'variacionMes'
         ));
     }
 }

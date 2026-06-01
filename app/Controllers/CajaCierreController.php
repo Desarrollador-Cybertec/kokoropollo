@@ -7,7 +7,7 @@ namespace App\Controllers;
 use App\Core\{Csrf, Request, Response, Session, View};
 use App\Enums\Rol;
 use App\Middleware\AuthMiddleware;
-use App\Models\{CajaApertura, CajaCierre};
+use App\Models\{Auditoria, CajaApertura, CajaCierre};
 
 final class CajaCierreController
 {
@@ -47,7 +47,7 @@ final class CajaCierreController
 
         if (!Csrf::validateToken($request->csrfToken())) {
             Session::flash('error', 'Token de seguridad inválido.');
-            Response::redirect('/caja/cierre');
+            Response::redirect('/caja');
         }
 
         $apertura = (new CajaApertura())->getHoy();
@@ -59,7 +59,7 @@ final class CajaCierreController
         $modelo = new CajaCierre();
         if ($modelo->existeHoy()) {
             Session::flash('error', 'Ya existe un cierre registrado para hoy.');
-            Response::redirect('/caja/cierre');
+            Response::redirect('/caja');
         }
 
         $usuarioId         = (int) Session::get('usuario_id', 0);
@@ -78,24 +78,37 @@ final class CajaCierreController
         }
 
         try {
-            $modelo->crear(
+            $cierreId = $modelo->crear(
                 $usuarioId, $aperturaId,
                 $ventas, $otrasEntradas, $gastosCaja,
                 $creditosEmpleados, $alses, $otrasSalidas,
                 $observaciones, $denominaciones
+            );
+            $cierre = $modelo->getHoy();
+            $resultado = $cierre ? (
+                ($cierre['sobrante'] > 0
+                    ? 'sobrante $' . number_format((float)$cierre['sobrante'], 0, ',', '.')
+                    : ($cierre['faltante'] > 0
+                        ? 'faltante $' . number_format((float)$cierre['faltante'], 0, ',', '.')
+                        : 'cuadre exacto'))
+            ) : '';
+            (new Auditoria())->registrar(
+                Session::get('usuario', ''), 'cierre', 'crear',
+                "Cierre registrado — {$resultado}"
             );
             Session::flash('exito', 'Cierre de caja registrado correctamente.');
         } catch (\Exception $e) {
             Session::flash('error', 'Error al registrar el cierre. Intenta de nuevo.');
         }
 
-        Response::redirect('/caja/cierre');
+        Response::redirect('/caja');
     }
 
     private function soloAdmin(): void
     {
-        if (Session::get('rol') !== Rol::Administrador->value) {
-            Response::redirect('/dashboard');
+        $rol = Rol::tryFrom(Session::get('rol') ?? '');
+        if ($rol === null || !$rol->atLeast(Rol::Administrador)) {
+            Response::redirect($rol?->dashboard() ?? '/');
         }
     }
 }

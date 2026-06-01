@@ -64,6 +64,14 @@ require dirname(__DIR__) . '/partials/head.php';
             </div>
         </div>
 
+        <!-- Link historial de precios -->
+        <div class="text-right">
+            <a href="/config/historial-precios"
+               class="text-sm font-bold px-4 py-2 rounded-xl btn-secondary inline-block">
+                📈 Ver historial de cambios de precio →
+            </a>
+        </div>
+
         <!-- Nota informativa -->
         <div class="rounded-xl px-5 py-4 text-sm font-semibold" style="background-color:var(--rojo-card); color:#9ca3af;">
             💡 Estos precios se aplican en el POS de Ventas según el corte seleccionado.
@@ -189,6 +197,16 @@ require dirname(__DIR__) . '/partials/head.php';
         </form>
     </div>
 
+</div>
+
+<!-- Backup -->
+<div class="max-w-2xl mx-auto px-4 mt-6 pb-6">
+    <a href="/backup"
+       class="block w-full text-center font-bold text-base py-3 rounded-xl"
+       style="background-color:var(--rojo-card); border:1px solid var(--rojo-mid); color:#9ca3af;"
+       onclick="return confirm('¿Descargar backup completo de la base de datos?')">
+        💾 Descargar backup de la BD (.sql)
+    </a>
 </div>
 
 <!-- Botón regresar -->

@@ -7,7 +7,7 @@ namespace App\Controllers;
 use App\Core\{Csrf, Logger, Request, Response, Session, View};
 use App\Enums\Rol;
 use App\Middleware\AuthMiddleware;
-use App\Models\{Caja, CajaApertura, HistorialCaja, Venta};
+use App\Models\{Auditoria, Caja, CajaApertura, CajaCierre, HistorialCaja, Venta};
 
 final class CajaController
 {
@@ -36,14 +36,19 @@ final class CajaController
             if ($m['tipo'] === 'retiro')  $retirosHoy  += (float) $m['valor'];
         }
 
-        $esAdmin         = $rol?->atLeast(Rol::Administrador) ?? false;
-        $aperturaHoy     = $esAdmin ? (new CajaApertura())->getHoy() : null;
+        $esAdmin     = $rol?->atLeast(Rol::Administrador) ?? false;
+        $aperturaHoy = $esAdmin ? (new CajaApertura())->getHoy() : null;
+        $cierreHoy   = $esAdmin ? (new CajaCierre())->getHoy()   : null;
+        $precalc     = ($esAdmin && $aperturaHoy && !$cierreHoy)
+            ? (new CajaCierre())->precalcularDia((int) $aperturaHoy['id'])
+            : [];
+        $denominaciones = CajaApertura::DENOMINACIONES;
 
         View::render('caja/index', compact(
             'total', 'movimientosHoy', 'dashboardUrl',
             'hoy', 'ayer', 'lunEs', 'priMes',
             'ingresosHoy', 'retirosHoy', 'ventasPendientesHoy',
-            'esAdmin', 'aperturaHoy'
+            'esAdmin', 'aperturaHoy', 'cierreHoy', 'precalc', 'denominaciones'
         ));
     }
 
@@ -80,6 +85,10 @@ final class CajaController
         $nuevoTotal = $tipo === 'ingreso' ? $total + $valor : $total - $valor;
         $caja->updateTotal($nuevoTotal);
         (new HistorialCaja())->create($tipo, $valor, $concepto, $usuario);
+        (new Auditoria())->registrar($usuario, 'caja', $tipo === 'ingreso' ? 'crear' : 'editar',
+            ($tipo === 'ingreso' ? 'Ingreso' : 'Retiro') . ' $' . number_format($valor, 0, ',', '.') .
+            ($concepto !== '' ? " — {$concepto}" : '')
+        );
 
         Logger::getInstance()->info("Movimiento de caja: {$tipo}", [
             'valor'   => $valor,

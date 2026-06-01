@@ -15,6 +15,10 @@ $pctCondimentos    = $pctCondimentos    ?? 0;
 $alertaCondimentos = $alertaCondimentos ?? null;
 $mesDesde          = $mesDesde          ?? date('Y-m-01');
 $mesHasta          = $mesHasta          ?? date('Y-m-d');
+$ticketDia         = $ticketDia         ?? 0.0;
+$topEmpleadoMes    = $topEmpleadoMes    ?? null;
+$topProductoMes    = $topProductoMes    ?? null;
+$variacionMes      = $variacionMes      ?? null;
 
 $p   = fn(float $v) => '$' . number_format($v, 0, ',', '.');
 $hoy = date('d/m/Y');
@@ -52,10 +56,10 @@ require dirname(__DIR__) . '/partials/head.php';
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <?php
         $kpisHoy = [
-            ['Ventas hoy',      (float)($resumenHoy['total_ventas'] ?? 0),  '#4ade80',  $p],
+            ['Ventas hoy',      (float)($resumenHoy['total_ventas'] ?? 0),  '#4ade80',    $p],
             ['Utilidad estim.', (float)($resumenHoy['utilidad']     ?? 0),  'var(--oro)', $p],
-            ['En caja ahora',   (float)$cajaTotal,                           'white',     $p],
-            ['Pedidos hoy',     (float)($resumenHoy['total_pedidos']?? 0),  '#93c5fd',  fn($v) => (int)$v],
+            ['En caja ahora',   (float)$cajaTotal,                           'white',      $p],
+            ['Pedidos hoy',     (float)($resumenHoy['total_pedidos']?? 0),  '#93c5fd',   fn($v) => (int)$v . ' ped.'],
         ];
         foreach ($kpisHoy as [$lbl, $val, $col, $fmt]):
         ?>
@@ -149,18 +153,30 @@ require dirname(__DIR__) . '/partials/head.php';
 
     <!-- ── Resumen del mes ──────────────────────────────────── -->
     <div class="rounded-2xl p-5" style="background-color:var(--rojo-card);">
-        <h3 class="font-black text-base uppercase tracking-wider mb-4" style="color:var(--oro);">
-            🗓️ Mes actual — <?= date('F Y', strtotime($mesDesde)) ?>
-        </h3>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <?php
+        $ventasMes    = (float)($resumenMes['total_ventas']  ?? 0);
+        $pedidosMes   = (int)($resumenMes['total_pedidos']   ?? 0);
+        $ticketMes    = $pedidosMes > 0 ? $ventasMes / $pedidosMes : 0.0;
+        ?>
+        <div class="flex justify-between items-start mb-4 flex-wrap gap-3">
+            <h3 class="font-black text-base uppercase tracking-wider" style="color:var(--oro);">
+                🗓️ Mes actual — <?= date('F Y', strtotime($mesDesde)) ?>
+            </h3>
+            <?php if ($variacionMes !== null): ?>
+            <span class="text-sm font-black px-3 py-1 rounded-xl"
+                  style="background-color:<?= $variacionMes >= 0 ? '#132a1e' : '#4a0e0e' ?>;
+                         color:<?= $variacionMes >= 0 ? '#4ade80' : '#fca5a5' ?>;">
+                <?= $variacionMes >= 0 ? '↑' : '↓' ?> <?= abs($variacionMes) ?>% vs mes anterior
+            </span>
+            <?php endif; ?>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <?php
             $kpisMes = [
-                ['Ventas mes',    (float)($resumenMes['total_ventas']  ?? 0), '#4ade80',  $p],
-                ['Utilidad mes',  (float)($resumenMes['utilidad']      ?? 0), 'var(--oro)', $p],
-                ['Pedidos mes',   (float)($resumenMes['total_pedidos'] ?? 0), 'white',     fn($v) => (int)$v],
-                ['Ticket prom.',  (float)($resumenMes['total_pedidos'] ?? 0) > 0
-                    ? (float)($resumenMes['total_ventas'] ?? 0) / (float)($resumenMes['total_pedidos'] ?? 1)
-                    : 0.0,                                                     '#93c5fd',  $p],
+                ['Ventas mes',   $ventasMes,                          '#4ade80',    $p],
+                ['Utilidad mes', (float)($resumenMes['utilidad'] ?? 0), 'var(--oro)', $p],
+                ['Pedidos mes',  (float)$pedidosMes,                  'white',      fn($v) => (int)$v . ' ped.'],
+                ['Ticket prom.', $ticketMes,                          '#93c5fd',    $p],
             ];
             foreach ($kpisMes as [$lbl, $val, $col, $fmt]):
             ?>
@@ -171,6 +187,34 @@ require dirname(__DIR__) . '/partials/head.php';
             </div>
             <?php endforeach; ?>
         </div>
+
+        <!-- Top empleado + Top producto del mes -->
+        <?php if ($topEmpleadoMes || $topProductoMes): ?>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <?php if ($topEmpleadoMes): ?>
+            <div class="rounded-xl px-4 py-3 flex items-center gap-3"
+                 style="background-color:var(--rojo-deep); border:1px solid var(--rojo-mid);">
+                <span class="text-2xl">🏆</span>
+                <div>
+                    <p class="text-xs font-bold uppercase" style="color:#9ca3af;">Top empleado del mes</p>
+                    <p class="font-black text-white"><?= htmlspecialchars($topEmpleadoMes['usuario'], ENT_QUOTES, 'UTF-8') ?></p>
+                    <p class="text-xs" style="color:#4ade80;"><?= $p((float)$topEmpleadoMes['ventas']) ?> · <?= (int)$topEmpleadoMes['pedidos'] ?> pedidos</p>
+                </div>
+            </div>
+            <?php endif; ?>
+            <?php if ($topProductoMes): ?>
+            <div class="rounded-xl px-4 py-3 flex items-center gap-3"
+                 style="background-color:var(--rojo-deep); border:1px solid var(--rojo-mid);">
+                <span class="text-2xl">🥇</span>
+                <div>
+                    <p class="text-xs font-bold uppercase" style="color:#9ca3af;">Top producto del mes</p>
+                    <p class="font-black text-white"><?= htmlspecialchars($topProductoMes['articulo'], ENT_QUOTES, 'UTF-8') ?></p>
+                    <p class="text-xs" style="color:var(--oro);"><?= (int)$topProductoMes['uds_vendidas'] ?> uds · <?= $p((float)$topProductoMes['ingresos']) ?></p>
+                </div>
+            </div>
+            <?php endif; ?>
+        </div>
+        <?php endif; ?>
     </div>
 
     <!-- ── Accesos rápidos ──────────────────────────────────── -->

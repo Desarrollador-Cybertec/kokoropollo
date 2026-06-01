@@ -7,7 +7,7 @@ namespace App\Controllers;
 use App\Core\{Csrf, Request, Response, Session};
 use App\Enums\Rol;
 use App\Middleware\AuthMiddleware;
-use App\Models\{Caja, RetiroSeguridad};
+use App\Models\{Auditoria, Caja, RetiroSeguridad};
 
 final class AlsesController
 {
@@ -32,6 +32,10 @@ final class AlsesController
 
         try {
             (new RetiroSeguridad())->crear($valor, $motivo, $usuarioId);
+            (new Auditoria())->registrar(
+                Session::get('usuario', ''), 'alse', 'eliminar',
+                'ALSÉ $' . number_format($valor, 0, ',', '.') . " — {$motivo}"
+            );
             $nuevoTotal = (new Caja())->getTotal();
             Response::json(['status' => 'ok', 'nuevoCajaTotal' => $nuevoTotal]);
         } catch (\RuntimeException $e) {
@@ -41,7 +45,8 @@ final class AlsesController
 
     private function soloAdmin(): void
     {
-        if (Session::get('rol') !== Rol::Administrador->value) {
+        $rol = Rol::tryFrom(Session::get('rol') ?? '');
+        if ($rol === null || !$rol->atLeast(Rol::Administrador)) {
             Response::json(['status' => 'error', 'mensaje' => 'Acceso denegado.'], 403);
         }
     }

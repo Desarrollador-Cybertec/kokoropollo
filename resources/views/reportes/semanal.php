@@ -165,7 +165,9 @@ require dirname(__DIR__) . '/partials/head.php';
         <div class="flex gap-3 flex-wrap">
             <a href="/reportes" class="font-bold px-6 py-3 rounded-xl btn-secondary inline-block">← Reportes</a>
             <a href="/reportes/semanal?desde=<?= View::escape($desde) ?>&hasta=<?= View::escape($hasta) ?>&export=csv"
-                class="font-bold px-6 py-3 rounded-xl btn-secondary inline-block">📥 CSV</a>
+                class="font-bold px-5 py-3 rounded-xl btn-secondary inline-block">📥 CSV</a>
+            <a href="/reportes/semanal?desde=<?= View::escape($desde) ?>&hasta=<?= View::escape($hasta) ?>&export=xls"
+                class="font-bold px-5 py-3 rounded-xl btn-secondary inline-block">📊 Excel</a>
         </div>
     </div>
 </body>

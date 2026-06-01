@@ -6,6 +6,7 @@ use App\Controllers\{
     AlsesController,
     AuditoriaController,
     AuthController,
+    BackupController,
     CajaAperturaController,
     CajaCierreController,
     CreditosController,
@@ -78,6 +79,12 @@ $router->get('/reportes/semanal',    [ReportesController::class, 'semanal']);
 $router->get('/reportes/mensual',    [ReportesController::class, 'mensual']);
 $router->get('/reportes/productos',  [ReportesController::class, 'productos']);
 $router->get('/reportes/empleados',  [ReportesController::class, 'empleados']);
+
+// ── Backup (solo Jefe) ─────────────────────────────────────
+$router->get('/backup', [BackupController::class, 'download']);
+
+// ── Historial de precios ───────────────────────────────────
+$router->get('/config/historial-precios', [ConfigController::class, 'historialPrecios']);
 
 // ── Auditoría (solo Jefe) ──────────────────────────────────
 $router->get('/auditoria', [AuditoriaController::class, 'index']);
