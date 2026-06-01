@@ -150,8 +150,10 @@ require dirname(__DIR__) . '/partials/head.php';
     </div>
     <?php endif; ?>
 
-    <div class="flex gap-3 justify-center">
+    <div class="flex gap-3 justify-center flex-wrap">
         <a href="/reportes" class="font-bold px-6 py-3 rounded-xl btn-secondary">← Reportes</a>
+        <a href="/reportes/diario?fecha=<?= View::escape($fecha) ?>&export=csv"
+           class="font-bold px-6 py-3 rounded-xl btn-secondary">📥 CSV</a>
         <a href="/reportes/diario?fecha=<?= date('Y-m-d', strtotime($fecha . ' -1 day')) ?>"
            class="font-bold px-6 py-3 rounded-xl btn-secondary">← Día anterior</a>
         <?php if ($fecha < date('Y-m-d')): ?>

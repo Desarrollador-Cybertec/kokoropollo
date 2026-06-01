@@ -159,7 +159,11 @@ require dirname(__DIR__) . '/partials/head.php';
     </div>
     <?php endif; ?>
 
-    <a href="/reportes" class="font-bold px-6 py-3 rounded-xl btn-secondary inline-block">← Reportes</a>
+    <div class="flex gap-3 flex-wrap">
+        <a href="/reportes" class="font-bold px-6 py-3 rounded-xl btn-secondary inline-block">← Reportes</a>
+        <a href="/reportes/semanal?desde=<?= View::escape($desde) ?>&hasta=<?= View::escape($hasta) ?>&export=csv"
+           class="font-bold px-6 py-3 rounded-xl btn-secondary inline-block">📥 CSV</a>
+    </div>
 </div>
 </body>
 </html>
