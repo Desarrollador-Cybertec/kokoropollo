@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS `ventas` (
     `total`           DECIMAL(14,2)   NOT NULL,
     `usuario`         VARCHAR(60)     NOT NULL DEFAULT '',
     `fecha`           DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `liquidado`       TINYINT(1)      NOT NULL DEFAULT 0,
     PRIMARY KEY (`id`),
     KEY `idx_fecha` (`fecha`),
     KEY `idx_orden` (`orden_id`),

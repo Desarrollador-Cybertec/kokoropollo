@@ -29,15 +29,18 @@ $router->post('/inventario/update', [InventarioController::class, 'update']);
 $router->post('/inventario/delete', [InventarioController::class, 'destroy']);
 
 // ── Caja ───────────────────────────────────────────────────
-$router->get('/caja',  [CajaController::class, 'index']);
-$router->post('/caja', [CajaController::class, 'process']);
+$router->get('/caja',          [CajaController::class, 'index']);
+$router->post('/caja',         [CajaController::class, 'process']);
+$router->get('/caja/resumen',  [CajaController::class, 'resumen']);
+$router->post('/caja/ajuste',  [CajaController::class, 'ajuste']);
 
 // ── Historial ──────────────────────────────────────────────
 $router->get('/historial', [HistorialController::class, 'index']);
 
 // ── Ventas ─────────────────────────────────────────────────
-$router->get('/ventas',        [VentasController::class, 'index']);
-$router->post('/ventas/store', [VentasController::class, 'store']);
+$router->get('/ventas',            [VentasController::class, 'index']);
+$router->post('/ventas/store',     [VentasController::class, 'store']);
+$router->post('/ventas/liquidar',  [VentasController::class, 'liquidar']);
 
 // ── Configuración (solo Administrador) ────────────────────
 $router->get('/config',  [ConfigController::class, 'index']);

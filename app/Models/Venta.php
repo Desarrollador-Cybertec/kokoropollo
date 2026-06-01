@@ -56,6 +56,31 @@ final class Venta
         return (float) $stmt->fetchColumn();
     }
 
+    public function sumPendingLiquidation(): float
+    {
+        $stmt = Database::getInstance()->prepare(
+            'SELECT COALESCE(SUM(total), 0) FROM ventas WHERE liquidado = 0'
+        );
+        $stmt->execute();
+        return (float) $stmt->fetchColumn();
+    }
+
+    public function countPendingLiquidation(): int
+    {
+        $stmt = Database::getInstance()->prepare(
+            'SELECT COUNT(*) FROM ventas WHERE liquidado = 0'
+        );
+        $stmt->execute();
+        return (int) $stmt->fetchColumn();
+    }
+
+    public function markAllLiquidated(): void
+    {
+        Database::getInstance()->prepare(
+            'UPDATE ventas SET liquidado = 1 WHERE liquidado = 0'
+        )->execute();
+    }
+
     public function allToday(): array
     {
         $stmt = Database::getInstance()->prepare(

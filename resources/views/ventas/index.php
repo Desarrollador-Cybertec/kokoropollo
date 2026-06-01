@@ -1,19 +1,23 @@
 <?php
 declare(strict_types=1);
-use App\Core\View;
+use App\Core\{Csrf, View};
 
-$productos = (isset($productos) && is_array($productos)) ? $productos : [];
-$productosJson = isset($productosJson) ? (string) $productosJson : '[]';
-$categoriasConfig = (isset($categoriasConfig) && is_array($categoriasConfig)) ? $categoriasConfig : [];
-$totalDia = isset($totalDia) ? (float) $totalDia : 0.0;
-$dashboardUrl = isset($dashboardUrl) ? (string) $dashboardUrl : '/dashboard';
-$preciosPolloJson = isset($preciosPolloJson) ? (string) $preciosPolloJson : '{"Asado":{"cuarto":0,"medio":0,"entero":0},"Broaster":{"cuarto":0,"medio":0,"entero":0}}';
+$productos            = (isset($productos) && is_array($productos)) ? $productos : [];
+$productosJson        = isset($productosJson) ? (string) $productosJson : '[]';
+$categoriasConfig     = (isset($categoriasConfig) && is_array($categoriasConfig)) ? $categoriasConfig : [];
+$totalDia             = isset($totalDia) ? (float) $totalDia : 0.0;
+$dashboardUrl         = isset($dashboardUrl) ? (string) $dashboardUrl : '/dashboard';
+$preciosPolloJson     = isset($preciosPolloJson) ? (string) $preciosPolloJson : '{"Asado":{"cuarto":0,"medio":0,"entero":0},"Broaster":{"cuarto":0,"medio":0,"entero":0}}';
+$pendienteLiquidacion = isset($pendienteLiquidacion) ? (float) $pendienteLiquidacion : 0.0;
+$cajaTotal            = isset($cajaTotal) ? (float) $cajaTotal : 0.0;
+$cajaMovimientos      = (isset($cajaMovimientos) && is_array($cajaMovimientos)) ? $cajaMovimientos : [];
+$cajaIngresos         = isset($cajaIngresos) ? (float) $cajaIngresos : 0.0;
+$cajaRetiros          = isset($cajaRetiros) ? (float) $cajaRetiros : 0.0;
 
 $pageTitle = 'Ventas — Kokoro Pollo';
 require dirname(__DIR__) . '/partials/head.php';
 ?>
 <style>
-/* Aliases usados por ventas.js al manipular estilos inline */
 :root {
     --rojo-alt:  #4a0e0e;
     --rojo-bord: #5a1a1a;
@@ -105,260 +109,385 @@ body { background-color: var(--rojo-deep); min-height: 100vh; }
     transition: background-color .15s; cursor: pointer;
 }
 .btn-vaciar:hover { background-color: #7f1d1d; }
+
+/* ── Panel caja (derecha) ── */
+.caja-input {
+    background-color: var(--rojo-deep);
+    color: white;
+    border: 1.5px solid var(--rojo-bord);
+    border-radius: .5rem;
+    padding: .5rem .75rem;
+    font-size: .95rem;
+    width: 100%;
+    outline: none;
+    transition: border-color .15s;
+}
+.caja-input:focus { border-color: var(--oro); }
 </style>
-<body class="py-6 pb-28">
+
+<body class="py-4 pb-16">
 
 <?php require dirname(__DIR__) . '/partials/toasts.php' ?>
 
-<div class="max-w-4xl mx-auto px-4 space-y-5">
+<!-- ══ LAYOUT DIVIDIDO ══════════════════════════════════════════ -->
+<div class="flex flex-col lg:flex-row gap-4 px-3 max-w-[1700px] mx-auto" style="min-height:calc(100vh - 2rem);">
 
-    <!-- Encabezado -->
-    <div class="flex items-center justify-between">
-        <a href="<?= View::escape($dashboardUrl) ?>"
-           class="font-black text-base px-5 py-3 rounded-xl btn-primary">
-            ← REGRESAR
-        </a>
-        <h1 class="font-black text-3xl tracking-wide" style="color:var(--oro);">🛒 Ventas</h1>
-        <div class="w-28"></div>
-    </div>
+    <!-- ══ COLUMNA DERECHA — Ventas ════════════════════════ -->
+    <div class="lg:w-3/5 space-y-4 lg:order-2">
 
-    <!-- ══════════════════════════════════════════
-         BLOQUE 1 — Seleccionar producto
-    ══════════════════════════════════════════ -->
-    <div class="rounded-2xl p-5 shadow-xl" style="background-color:var(--rojo-card);">
-        <h2 class="font-black text-xl mb-4" style="color:var(--oro);">1️⃣ Seleccionar producto</h2>
-
-        <!-- Filtros de categoría -->
-        <div class="flex flex-wrap gap-2 mb-4" id="catFiltros">
-            <button class="cat-btn activa" data-cat="Todos" onclick="filtrarCategoria(this)">
-                🔎 Todos
-            </button>
-            <?php foreach ($categoriasConfig as $cat => $cfg): ?>
-                <button class="cat-btn" data-cat="<?= $cat ?>" onclick="filtrarCategoria(this)">
-                    <?= $cfg['emoji'] ?> <?= $cat ?>
-                </button>
-            <?php endforeach; ?>
+        <!-- Encabezado -->
+        <div class="flex items-center justify-between">
+            <a href="<?= View::escape($dashboardUrl) ?>"
+               class="font-black text-sm px-4 py-2 rounded-xl btn-primary">
+                ← Regresar
+            </a>
+            <h1 class="font-black text-2xl tracking-wide" style="color:var(--oro);">🛒 Ventas</h1>
+            <div class="w-24"></div>
         </div>
 
-        <!-- Grid de tarjetas de producto -->
-        <div id="gridProductos" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            <?php foreach ($productos as $p): ?>
-                <div class="prod-card <?= (int)$p['cantidad'] <= 0 ? 'sin-stock' : '' ?>"
-                     data-id="<?= (int)$p['id'] ?>"
-                     data-nombre="<?= View::escape($p['articulo']) ?>"
-                     data-precio="<?= (float)$p['valor'] ?>"
-                     data-stock="<?= (int)$p['cantidad'] ?>"
-                     data-cat="<?= View::escape($p['categoria']) ?>"
-                     onclick="seleccionarProducto(this)">
-                    <div class="cat-emoji">
-                        <?= $categoriasConfig[$p['categoria']]['emoji'] ?? '📦' ?>
+        <!-- ══ BLOQUE 1 — Seleccionar producto ══════════════ -->
+        <div class="rounded-2xl p-4 shadow-xl" style="background-color:var(--rojo-card);">
+            <h2 class="font-black text-lg mb-3" style="color:var(--oro);">1️⃣ Seleccionar producto</h2>
+
+            <div class="flex flex-wrap gap-2 mb-3" id="catFiltros">
+                <button class="cat-btn activa" data-cat="Todos" onclick="filtrarCategoria(this)">
+                    🔎 Todos
+                </button>
+                <?php foreach ($categoriasConfig as $cat => $cfg): ?>
+                    <button class="cat-btn" data-cat="<?= $cat ?>" onclick="filtrarCategoria(this)">
+                        <?= $cfg['emoji'] ?> <?= $cat ?>
+                    </button>
+                <?php endforeach; ?>
+            </div>
+
+            <div id="gridProductos" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <?php foreach ($productos as $p): ?>
+                    <div class="prod-card <?= (int)$p['cantidad'] <= 0 ? 'sin-stock' : '' ?>"
+                         data-id="<?= (int)$p['id'] ?>"
+                         data-nombre="<?= View::escape($p['articulo']) ?>"
+                         data-precio="<?= (float)$p['valor'] ?>"
+                         data-stock="<?= (int)$p['cantidad'] ?>"
+                         data-cat="<?= View::escape($p['categoria']) ?>"
+                         onclick="seleccionarProducto(this)">
+                        <div class="cat-emoji">
+                            <?= $categoriasConfig[$p['categoria']]['emoji'] ?? '📦' ?>
+                        </div>
+                        <div class="prod-nom"><?= View::escape($p['articulo']) ?></div>
+                        <?php if ($p['categoria'] === 'Pollo Crudo'): ?>
+                            <div class="prod-prec">Costo: $<?= number_format((float)$p['valor'] * 4, 0, ',', '.') ?>/pollo</div>
+                            <div class="prod-stk <?= (int)$p['cantidad'] <= 4 ? 'text-red-400' : 'text-green-400' ?>">
+                                <?= intdiv((int)$p['cantidad'], 4) ?> pollos (<?= (int)$p['cantidad'] ?> cuartos)
+                            </div>
+                        <?php else: ?>
+                            <div class="prod-prec">$<?= number_format((float)$p['valor'], 0, ',', '.') ?></div>
+                            <div class="prod-stk <?= (int)$p['cantidad'] <= 5 ? 'text-red-400' : 'text-green-400' ?>">
+                                <?= (int)$p['cantidad'] ?> disponibles
+                            </div>
+                        <?php endif; ?>
                     </div>
-                    <div class="prod-nom"><?= View::escape($p['articulo']) ?></div>
-                    <?php if ($p['categoria'] === 'Pollo Crudo'): ?>
-                        <div class="prod-prec">Costo base: $<?= number_format((float)$p['valor'] * 4, 0, ',', '.') ?>/pollo</div>
-                        <div class="prod-stk <?= (int)$p['cantidad'] <= 4 ? 'text-red-400' : 'text-green-400' ?>">
-                            <?= intdiv((int)$p['cantidad'], 4) ?> pollos (<?= (int)$p['cantidad'] ?> cuartos)
-                        </div>
-                    <?php else: ?>
-                        <div class="prod-prec">$<?= number_format((float)$p['valor'], 0, ',', '.') ?></div>
-                        <div class="prod-stk <?= (int)$p['cantidad'] <= 5 ? 'text-red-400' : 'text-green-400' ?>">
-                            <?= (int)$p['cantidad'] ?> disponibles
-                        </div>
-                    <?php endif; ?>
+                <?php endforeach; ?>
+                <?php if (empty($productos)): ?>
+                    <div class="col-span-3 text-center py-8" style="color:#9ca3af;">
+                        Sin productos con stock disponible
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- ══ BLOQUE 2 — Configurar ════════════════════════ -->
+        <div id="configPanel" class="config-panel hidden">
+            <div class="flex justify-between items-start mb-4 flex-wrap gap-3">
+                <div>
+                    <p class="text-sm font-semibold" style="color:#9ca3af;">Producto seleccionado</p>
+                    <p id="cfgNombre" class="text-2xl font-black" style="color:var(--oro);"></p>
+                    <p id="cfgPrecio" class="text-base font-semibold text-gray-300"></p>
                 </div>
-            <?php endforeach; ?>
-            <?php if (empty($productos)): ?>
-                <div class="col-span-4 text-center py-8" style="color:#9ca3af;">
-                    Sin productos con stock disponible
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
-
-        <!-- ══════════════════════════════════════════
-            BLOQUE 2 — Configurar (preparación + corte + cantidad)
-    ══════════════════════════════════════════ -->
-    <div id="configPanel" class="config-panel hidden">
-        <div class="flex justify-between items-start mb-4 flex-wrap gap-3">
-            <div>
-                <p class="text-sm font-semibold" style="color:#9ca3af;">Producto seleccionado</p>
-                <p id="cfgNombre" class="text-2xl font-black" style="color:var(--oro);"></p>
-                <p id="cfgPrecio" class="text-base font-semibold text-gray-300"></p>
-            </div>
-            <button onclick="deseleccionarProducto()"
-                    class="text-sm px-4 py-2 rounded-xl font-bold text-gray-400 border border-gray-600 hover:border-red-500 hover:text-red-400 transition-all">
-                ✕ Cambiar
-            </button>
-        </div>
-
-        <!-- Preparación (solo para Pollo Crudo) -->
-        <div id="seccionPreparacion" class="hidden mb-5">
-            <p class="text-sm font-bold mb-3" style="color:#9ca3af;">¿Cómo lo quiere?</p>
-            <div class="grid grid-cols-2 gap-3 sm:max-w-sm">
-                <button type="button" class="corte-btn" data-prep="Asado" onclick="seleccionarPreparacion(this, 'Asado')">
-                    <span class="ce">🍗</span>
-                    <span>Asado</span>
-                    <span class="cs">a la brasa</span>
-                </button>
-                <button type="button" class="corte-btn" data-prep="Broaster" onclick="seleccionarPreparacion(this, 'Broaster')">
-                    <span class="ce">🍳</span>
-                    <span>Broaster</span>
-                    <span class="cs">frito crocante</span>
+                <button onclick="deseleccionarProducto()"
+                        class="text-sm px-4 py-2 rounded-xl font-bold text-gray-400 border border-gray-600 hover:border-red-500 hover:text-red-400 transition-all">
+                    ✕ Cambiar
                 </button>
             </div>
-        </div>
 
-        <!-- Corte (solo para Pollo Crudo) -->
-        <div id="seccionCorte" class="hidden mb-5">
-            <p class="text-sm font-bold mb-3" style="color:#9ca3af;">¿Cuánto lleva?</p>
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <button type="button" class="corte-btn" data-mult="1" data-corte-key="cuarto" onclick="seleccionarCorte(this,'1/4 Pierna-Pernil')">
-                    <span class="ce">🍗</span>
-                    <span>¼ Pierna</span>
-                    <span class="cs">Pierna + Pernil</span>
-                    <span class="cs">× 1 ud</span>
-                </button>
-                <button type="button" class="corte-btn" data-mult="1" data-corte-key="cuarto" onclick="seleccionarCorte(this,'1/4 Pechuga-Ala')">
-                    <span class="ce">🍗</span>
-                    <span>¼ Pechuga</span>
-                    <span class="cs">Pechuga + Ala</span>
-                    <span class="cs">× 1 ud</span>
-                </button>
-                <button type="button" class="corte-btn" data-mult="2" data-corte-key="medio" onclick="seleccionarCorte(this,'Medio Pollo')">
-                    <span class="ce">🍗🍗</span>
-                    <span>Medio Pollo</span>
-                    <span class="cs">2 cuartos</span>
-                    <span class="cs">× 2 uds</span>
-                </button>
-                <button type="button" class="corte-btn" data-mult="4" data-corte-key="entero" onclick="seleccionarCorte(this,'Pollo Entero')">
-                    <span class="ce">🐔</span>
-                    <span>Pollo Entero</span>
-                    <span class="cs">4 cuartos</span>
-                    <span class="cs">× 4 uds</span>
-                </button>
-            </div>
-        </div>
-
-        <!-- Cantidad + agregar -->
-        <div class="flex flex-wrap items-center gap-5 mt-2">
-            <div>
-                <p class="text-sm font-bold mb-2" style="color:#9ca3af;">Cantidad</p>
-                <div class="flex items-center gap-2">
-                    <button class="q-btn" onclick="cambiarCantidad(-1)">−</button>
-                    <input type="number" id="cfgCantidad" value="1" min="1"
-                           class="q-inp" oninput="recalcSubtotal()">
-                    <button class="q-btn" onclick="cambiarCantidad(1)">+</button>
+            <div id="seccionPreparacion" class="hidden mb-5">
+                <p class="text-sm font-bold mb-3" style="color:#9ca3af;">¿Cómo lo quiere?</p>
+                <div class="grid grid-cols-2 gap-3 sm:max-w-sm">
+                    <button type="button" class="corte-btn" data-prep="Asado" onclick="seleccionarPreparacion(this, 'Asado')">
+                        <span class="ce">🍗</span><span>Asado</span><span class="cs">a la brasa</span>
+                    </button>
+                    <button type="button" class="corte-btn" data-prep="Broaster" onclick="seleccionarPreparacion(this, 'Broaster')">
+                        <span class="ce">🍳</span><span>Broaster</span><span class="cs">frito crocante</span>
+                    </button>
                 </div>
             </div>
-            <div>
-                <p class="text-sm font-bold mb-2" style="color:#9ca3af;">Subtotal</p>
-                <p id="cfgSubtotal" class="text-3xl font-black" style="color:var(--oro);">$0</p>
+
+            <div id="seccionCorte" class="hidden mb-5">
+                <p class="text-sm font-bold mb-3" style="color:#9ca3af;">¿Cuánto lleva?</p>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <button type="button" class="corte-btn" data-mult="1" data-corte-key="cuarto" onclick="seleccionarCorte(this,'1/4 Pierna-Pernil')">
+                        <span class="ce">🍗</span><span>¼ Pierna</span><span class="cs">Pierna + Pernil</span><span class="cs">× 1 ud</span>
+                    </button>
+                    <button type="button" class="corte-btn" data-mult="1" data-corte-key="cuarto" onclick="seleccionarCorte(this,'1/4 Pechuga-Ala')">
+                        <span class="ce">🍗</span><span>¼ Pechuga</span><span class="cs">Pechuga + Ala</span><span class="cs">× 1 ud</span>
+                    </button>
+                    <button type="button" class="corte-btn" data-mult="2" data-corte-key="medio" onclick="seleccionarCorte(this,'Medio Pollo')">
+                        <span class="ce">🍗🍗</span><span>Medio Pollo</span><span class="cs">2 cuartos</span><span class="cs">× 2 uds</span>
+                    </button>
+                    <button type="button" class="corte-btn" data-mult="4" data-corte-key="entero" onclick="seleccionarCorte(this,'Pollo Entero')">
+                        <span class="ce">🐔</span><span>Pollo Entero</span><span class="cs">4 cuartos</span><span class="cs">× 4 uds</span>
+                    </button>
+                </div>
             </div>
-            <div class="flex-1 flex justify-end">
-                <button id="btnAgregar" onclick="agregarAlCarrito()"
-                        class="font-black text-xl px-8 py-4 rounded-2xl shadow-lg btn-green"
-                        disabled>
-                    ➕ Agregar al pedido
+
+            <div class="flex flex-wrap items-center gap-5 mt-2">
+                <div>
+                    <p class="text-sm font-bold mb-2" style="color:#9ca3af;">Cantidad</p>
+                    <div class="flex items-center gap-2">
+                        <button class="q-btn" onclick="cambiarCantidad(-1)">−</button>
+                        <input type="number" id="cfgCantidad" value="1" min="1"
+                               class="q-inp" oninput="recalcSubtotal()">
+                        <button class="q-btn" onclick="cambiarCantidad(1)">+</button>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-sm font-bold mb-2" style="color:#9ca3af;">Subtotal</p>
+                    <p id="cfgSubtotal" class="text-3xl font-black" style="color:var(--oro);">$0</p>
+                </div>
+                <div class="flex-1 flex justify-end">
+                    <button id="btnAgregar" onclick="agregarAlCarrito()"
+                            class="font-black text-xl px-8 py-4 rounded-2xl shadow-lg btn-green" disabled>
+                        ➕ Agregar al pedido
+                    </button>
+                </div>
+            </div>
+            <div id="alertaStockCfg"
+                 class="hidden mt-3 text-center font-bold px-4 py-3 rounded-xl text-base"
+                 style="background-color:#7f1d1d; color:#fca5a5; border:1px solid #ef4444;">
+                ⚠️ Stock insuficiente para esta cantidad
+            </div>
+        </div>
+
+        <!-- ══ BLOQUE 2.5 — Acompañamientos ═════════════════ -->
+        <div id="seccionAcomp" class="hidden config-panel" style="border-color:#d4af37;">
+            <div class="flex justify-between items-center mb-3">
+                <div>
+                    <h2 class="font-black text-xl" style="color:var(--oro);">🍽️ ¿Qué lleva de acompañamiento?</h2>
+                    <p class="text-sm mt-1" style="color:#9ca3af;">Toca lo que quiere agregar — luego haz clic en Listo</p>
+                </div>
+                <button onclick="cerrarAcomp()"
+                        class="text-sm px-4 py-2 rounded-xl font-bold text-gray-400 border border-gray-600 hover:border-red-500 hover:text-red-400 transition-all">
+                    ✕ Saltar
                 </button>
             </div>
-        </div>
-        <div id="alertaStockCfg"
-             class="hidden mt-3 text-center font-bold px-4 py-3 rounded-xl text-base"
-             style="background-color:#7f1d1d; color:#fca5a5; border:1px solid #ef4444;">
-            ⚠️ Stock insuficiente para esta cantidad
-        </div>
-    </div>
-
-    <!-- ══════════════════════════════════════════
-         BLOQUE 2.5 — Acompañamientos rápidos
-    ══════════════════════════════════════════ -->
-    <div id="seccionAcomp" class="hidden config-panel" style="border-color:#d4af37;">
-        <div class="flex justify-between items-center mb-3">
-            <div>
-                <h2 class="font-black text-xl" style="color:var(--oro);">🍽️ ¿Qué lleva de acompañamiento?</h2>
-                <p class="text-sm mt-1" style="color:#9ca3af;">Toca lo que quiere agregar — luego haz clic en Listo</p>
-            </div>
-            <button onclick="cerrarAcomp()"
-                    class="text-sm px-4 py-2 rounded-xl font-bold text-gray-400 border border-gray-600 hover:border-red-500 hover:text-red-400 transition-all">
-                ✕ Saltar
-            </button>
-        </div>
-        <div id="gridAcomp" class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4"></div>
-        <button onclick="agregarAcompSeleccionados()"
-                class="w-full font-black text-xl py-4 rounded-2xl btn-green">
-            ✅ Listo — ver pedido
-        </button>
-    </div>
-
-    <!-- ══════════════════════════════════════════
-         BLOQUE 3 — Carrito del pedido
-    ══════════════════════════════════════════ -->
-    <div id="seccionCarrito" class="hidden rounded-2xl p-5 shadow-xl" style="background-color:var(--rojo-card);">
-        <h2 class="font-black text-xl mb-4" style="color:var(--oro);">
-            🧺 Pedido actual
-            <span id="cantItems" class="text-base font-semibold text-gray-400"></span>
-        </h2>
-
-        <div id="listaCarrito" class="space-y-2 mb-5"></div>
-
-        <!-- Total del pedido -->
-        <div class="flex justify-between items-center rounded-xl px-5 py-4 mb-4"
-             style="background-color:var(--rojo-deep); border:2px solid var(--rojo-bord);">
-            <span class="font-bold text-lg text-gray-300">TOTAL DEL PEDIDO</span>
-            <span id="totalPedido" class="font-black text-4xl" style="color:var(--oro);">$0</span>
-        </div>
-
-        <div class="grid sm:grid-cols-3 gap-2 mb-4">
-            <div class="rounded-xl px-4 py-3" style="background-color:#13331f; border:1px solid #1d6b3a;">
-                <p class="text-xs font-bold uppercase" style="color:#9ad9b0;">Venta</p>
-                <p id="resumenVenta" class="text-xl font-black" style="color:#9ad9b0;">$0</p>
-            </div>
-            <div class="rounded-xl px-4 py-3" style="background-color:#3a2a0f; border:1px solid #8a6b25;">
-                <p class="text-xs font-bold uppercase" style="color:#f7d58e;">Costo</p>
-                <p id="resumenCosto" class="text-xl font-black" style="color:#f7d58e;">$0</p>
-            </div>
-            <div class="rounded-xl px-4 py-3" style="background-color:#142f4a; border:1px solid #2563eb;">
-                <p class="text-xs font-bold uppercase" style="color:#93c5fd;">Margen</p>
-                <p id="resumenMargen" class="text-xl font-black" style="color:#93c5fd;">$0</p>
-            </div>
-        </div>
-
-        <div class="flex flex-wrap gap-3">
-            <button id="btnRegistrar" onclick="registrarPedido()"
-                    class="flex-1 font-black text-xl py-5 rounded-2xl shadow-xl uppercase tracking-wide btn-green"
-                    style="min-width:200px;">
-                ✅ Registrar Pedido
-            </button>
-            <button onclick="vaciarCarrito()"
-                    class="font-bold text-lg px-6 py-5 rounded-2xl btn-vaciar">
-                🗑️ Vaciar
-            </button>
-        </div>
-        <div id="alertaRegistro" class="hidden mt-3 text-center font-bold px-4 py-3 rounded-xl text-base"
-             style="background-color:#7f1d1d; color:#fca5a5; border:1px solid #ef4444;"></div>
-    </div>
-
-    <!-- ══════════════════════════════════════════
-         BLOQUE 4 — Historial del día
-    ══════════════════════════════════════════ -->
-    <div id="seccionHistorial" class="hidden space-y-3">
-        <div class="flex justify-between items-center">
-            <h2 class="font-black text-2xl" style="color:var(--oro);">📊 Pedidos de hoy</h2>
-            <button id="btnFactura" onclick="generarFactura()"
-                    class="font-black text-base px-5 py-3 rounded-xl btn-blue">
-                🧾 Factura del día
+            <div id="gridAcomp" class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4"></div>
+            <button onclick="agregarAcompSeleccionados()"
+                    class="w-full font-black text-xl py-4 rounded-2xl btn-green">
+                ✅ Listo — ver pedido
             </button>
         </div>
 
-        <div id="listaPedidos" class="space-y-3"></div>
+        <!-- ══ BLOQUE 3 — Carrito ════════════════════════════ -->
+        <div id="seccionCarrito" class="hidden rounded-2xl p-4 shadow-xl" style="background-color:var(--rojo-card);">
+            <h2 class="font-black text-xl mb-4" style="color:var(--oro);">
+                🧺 Pedido actual
+                <span id="cantItems" class="text-base font-semibold text-gray-400"></span>
+            </h2>
+            <div id="listaCarrito" class="space-y-2 mb-5"></div>
 
-        <div class="px-6 py-4 rounded-xl text-right font-black text-2xl"
-             style="background-color:var(--rojo-alt); color:var(--oro); border:2px solid var(--rojo-bord);">
-            Total del día: $<span id="totalDiaSpan"><?= number_format((float)$totalDia, 0, ',', '.') ?></span>
+            <div class="flex justify-between items-center rounded-xl px-5 py-4 mb-4"
+                 style="background-color:var(--rojo-deep); border:2px solid var(--rojo-bord);">
+                <span class="font-bold text-lg text-gray-300">TOTAL DEL PEDIDO</span>
+                <span id="totalPedido" class="font-black text-4xl" style="color:var(--oro);">$0</span>
+            </div>
+
+            <div class="grid sm:grid-cols-3 gap-2 mb-4">
+                <div class="rounded-xl px-4 py-3" style="background-color:#13331f; border:1px solid #1d6b3a;">
+                    <p class="text-xs font-bold uppercase" style="color:#9ad9b0;">Venta</p>
+                    <p id="resumenVenta" class="text-xl font-black" style="color:#9ad9b0;">$0</p>
+                </div>
+                <div class="rounded-xl px-4 py-3" style="background-color:#3a2a0f; border:1px solid #8a6b25;">
+                    <p class="text-xs font-bold uppercase" style="color:#f7d58e;">Costo</p>
+                    <p id="resumenCosto" class="text-xl font-black" style="color:#f7d58e;">$0</p>
+                </div>
+                <div class="rounded-xl px-4 py-3" style="background-color:#142f4a; border:1px solid #2563eb;">
+                    <p class="text-xs font-bold uppercase" style="color:#93c5fd;">Margen</p>
+                    <p id="resumenMargen" class="text-xl font-black" style="color:#93c5fd;">$0</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap gap-3">
+                <button id="btnRegistrar" onclick="registrarPedido()"
+                        class="flex-1 font-black text-xl py-5 rounded-2xl shadow-xl uppercase tracking-wide btn-green"
+                        style="min-width:200px;">
+                    ✅ Registrar Pedido
+                </button>
+                <button onclick="vaciarCarrito()"
+                        class="font-bold text-lg px-6 py-5 rounded-2xl btn-vaciar">
+                    🗑️ Vaciar
+                </button>
+            </div>
+            <div id="alertaRegistro" class="hidden mt-3 text-center font-bold px-4 py-3 rounded-xl text-base"
+                 style="background-color:#7f1d1d; color:#fca5a5; border:1px solid #ef4444;"></div>
         </div>
-    </div>
 
-</div>
+        <!-- ══ BLOQUE 4 — Historial del día ══════════════════ -->
+        <div id="seccionHistorial" class="hidden space-y-3">
+            <div class="flex justify-between items-center">
+                <h2 class="font-black text-xl" style="color:var(--oro);">📊 Pedidos de hoy</h2>
+                <button id="btnFactura" onclick="generarFactura()"
+                        class="font-black text-sm px-4 py-2 rounded-xl btn-blue">
+                    🧾 Factura
+                </button>
+            </div>
+            <div id="listaPedidos" class="space-y-3"></div>
+            <div class="px-5 py-4 rounded-xl text-right font-black text-xl"
+                 style="background-color:var(--rojo-alt); color:var(--oro); border:2px solid var(--rojo-bord);">
+                Total del día: $<span id="totalDiaSpan"><?= number_format((float)$totalDia, 0, ',', '.') ?></span>
+            </div>
+        </div>
+
+        <!-- ══ BLOQUE 5 — Liquidar a caja ═══════════════════ -->
+        <div class="rounded-2xl p-5 shadow-xl" style="background-color:var(--rojo-card); border:2px solid var(--oro);">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                    <h3 class="font-black text-lg mb-1" style="color:var(--oro);">💰 Por liquidar a caja</h3>
+                    <p class="font-black text-4xl text-white">
+                        $<span id="pendienteSpan"><?= number_format($pendienteLiquidacion, 0, ',', '.') ?></span>
+                    </p>
+                    <p id="pendienteDesc" class="text-sm mt-1" style="color:#9ca3af;">
+                        <?= $pendienteLiquidacion > 0 ? 'Ventas pendientes de enviar a caja' : 'Todo está liquidado ✓' ?>
+                    </p>
+                </div>
+                <button id="btnLiquidar" onclick="liquidarVentas()"
+                        class="font-black text-xl px-8 py-4 rounded-2xl shadow-lg btn-primary"
+                        <?= $pendienteLiquidacion <= 0 ? 'disabled style="opacity:.45;cursor:not-allowed;"' : '' ?>>
+                    🏦 Enviar a Caja
+                </button>
+            </div>
+            <div id="alertaLiquidacion" class="hidden mt-3 text-center font-bold px-4 py-3 rounded-xl text-base"></div>
+        </div>
+
+    </div><!-- /columna ventas -->
+
+    <!-- ══ COLUMNA IZQUIERDA — Caja ═══════════════════════════ -->
+    <div class="lg:w-2/5 space-y-4 lg:order-1">
+
+        <h2 class="font-black text-2xl text-center tracking-wide" style="color:var(--oro);">💰 Caja</h2>
+
+        <!-- Total en caja -->
+        <div class="bg-white text-5xl font-black text-center py-6 rounded-2xl shadow-2xl tracking-wider"
+             style="color:var(--rojo-dark);">
+            $<span id="cajaTotalDisplay"><?= number_format($cajaTotal, 0, ',', '.') ?></span>
+        </div>
+
+        <!-- Mini-resumen -->
+        <div class="grid grid-cols-2 gap-3">
+            <div class="rounded-xl px-4 py-3 text-center" style="background-color:#134e2a;">
+                <div class="text-xs font-bold uppercase tracking-wider text-green-300 mb-1">Ingresos hoy</div>
+                <div class="text-xl font-black text-green-300" id="cajaIngresosDisplay">
+                    +$<?= number_format($cajaIngresos, 0, ',', '.') ?>
+                </div>
+            </div>
+            <div class="rounded-xl px-4 py-3 text-center" style="background-color:#4a0e0e;">
+                <div class="text-xs font-bold uppercase tracking-wider mb-1" style="color:#fca5a5;">Retiros hoy</div>
+                <div class="text-xl font-black" style="color:#fca5a5;" id="cajaRetirosDisplay">
+                    -$<?= number_format($cajaRetiros, 0, ',', '.') ?>
+                </div>
+            </div>
+        </div>
+
+        <!-- Formularios Añadir / Retirar -->
+        <div class="rounded-2xl p-4 shadow-xl space-y-3" style="background-color:var(--rojo-card);">
+            <h3 class="font-black text-base uppercase tracking-wider" style="color:var(--oro);">Ajustar caja</h3>
+
+            <!-- Añadir -->
+            <form id="formAnadir" onsubmit="submitAjusteCaja(event, 'anadir')">
+                <div class="flex gap-2 mb-2">
+                    <input type="number" step="1" min="1" placeholder="Valor" required
+                           name="valor" class="caja-input" style="flex:1;">
+                    <input type="text" placeholder="Concepto" maxlength="255"
+                           name="concepto" class="caja-input" style="flex:2;">
+                </div>
+                <button type="submit"
+                        class="w-full font-black text-base py-3 rounded-xl uppercase tracking-wide btn-green">
+                    ➕ Añadir
+                </button>
+            </form>
+
+            <!-- Retirar -->
+            <form id="formRetirar" onsubmit="submitAjusteCaja(event, 'retirar')">
+                <div class="flex gap-2 mb-2">
+                    <input type="number" step="1" min="1" placeholder="Valor" required
+                           name="valor" class="caja-input" style="flex:1;">
+                    <input type="text" placeholder="Concepto" maxlength="255"
+                           name="concepto" class="caja-input" style="flex:2;">
+                </div>
+                <button type="submit"
+                        class="w-full font-black text-base py-3 rounded-xl uppercase tracking-wide btn-danger">
+                    ➖ Retirar
+                </button>
+            </form>
+
+            <div id="alertaCaja" class="hidden text-center font-bold px-3 py-2 rounded-xl text-sm"></div>
+        </div>
+
+        <!-- Actividad de hoy -->
+        <div class="rounded-2xl shadow-xl overflow-hidden" style="background-color:var(--rojo-card);">
+            <div class="px-4 py-3 flex justify-between items-center" style="background-color:var(--rojo-mid);">
+                <h3 class="font-black text-sm uppercase tracking-wider" style="color:var(--oro);">
+                    🕐 Actividad de hoy
+                </h3>
+                <button onclick="refrescarCaja()" title="Actualizar"
+                        class="text-xs font-bold px-2 py-1 rounded-lg text-gray-400 border border-gray-600 hover:border-yellow-500 hover:text-yellow-400 transition-all">
+                    ↻
+                </button>
+            </div>
+            <div id="cajaMov" style="max-height:320px; overflow-y:auto;">
+                <table class="w-full text-sm">
+                    <tbody id="cajaTbody">
+                        <?php foreach ($cajaMovimientos as $m): ?>
+                            <?php
+                                $esVenta   = $m['origen'] === 'ventas';
+                                $esRetiro  = $m['tipo']   === 'retiro';
+                                $liquidado = $esVenta && ($m['liquidado'] ?? 0);
+                                $color     = $esRetiro ? '#fca5a5' : ($esVenta ? 'var(--oro)' : '#4ade80');
+                                $signo     = $esRetiro ? '-' : '+';
+                            ?>
+                            <tr class="border-b" style="border-color:var(--rojo-mid);">
+                                <td class="px-3 py-2 whitespace-nowrap" style="color:<?= $color ?>; font-weight:700;">
+                                    <?= $esVenta ? '🛒' : ($esRetiro ? '▼' : '▲') ?>
+                                    <?php if ($esVenta): ?>
+                                        <?= View::escape($m['concepto']) ?>
+                                        <?php if ($liquidado): ?><span style="color:#6b7280; font-size:.7rem;"> ✓</span><?php endif; ?>
+                                    <?php else: ?>
+                                        <?= View::escape($m['concepto'] ?: ($esRetiro ? 'Retiro' : 'Ingreso')) ?>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="px-3 py-2 text-right whitespace-nowrap font-black" style="color:<?= $color ?>;">
+                                    <?= $signo ?>$<?= number_format((float)$m['valor'], 0, ',', '.') ?>
+                                </td>
+                                <td class="px-3 py-2 text-right text-xs" style="color:#9ca3af;">
+                                    <?= date('H:i', strtotime($m['fecha'])) ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        <?php if (empty($cajaMovimientos)): ?>
+                            <tr><td colspan="3" class="px-4 py-6 text-center" style="color:#9ca3af;">Sin actividad hoy</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Link al historial completo -->
+        <div class="text-center pb-4">
+            <a href="/caja" class="font-bold text-sm px-5 py-2 rounded-xl btn-secondary inline-block">
+                📋 Gestión completa de caja →
+            </a>
+        </div>
+
+    </div><!-- /columna derecha -->
+
+</div><!-- /layout dividido -->
 
 <!-- Modal Factura -->
 <div id="modalFactura"
@@ -383,6 +512,7 @@ body { background-color: var(--rojo-deep); min-height: 100vh; }
 const PRODUCTOS     = <?= $productosJson ?>;
 const PRECIOS_POLLO = <?= $preciosPolloJson ?>;
 let totalDiaAcum    = <?= (float)$totalDia ?>;
+let pendienteAcum   = <?= (float)$pendienteLiquidacion ?>;
 </script>
 <script src="/js/ventas.js"></script>
 

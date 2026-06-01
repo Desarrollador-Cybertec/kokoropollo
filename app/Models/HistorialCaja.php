@@ -50,6 +50,42 @@ final class HistorialCaja
         return $stmt->fetchAll();
     }
 
+    public function filterUnifiedToday(string $hoy): array
+    {
+        $stmt = Database::getInstance()->prepare(
+            "SELECT hc.id,
+                    hc.tipo,
+                    hc.valor,
+                    hc.concepto,
+                    hc.usuario,
+                    hc.fecha,
+                    'caja'   AS origen,
+                    NULL     AS orden_id,
+                    NULL     AS liquidado
+             FROM historial_caja hc
+             WHERE DATE(hc.fecha) = ?
+
+             UNION ALL
+
+             SELECT v.id,
+                    'venta'      AS tipo,
+                    v.total      AS valor,
+                    i.articulo   AS concepto,
+                    v.usuario,
+                    v.fecha,
+                    'ventas'     AS origen,
+                    v.orden_id,
+                    v.liquidado
+             FROM ventas v
+             JOIN inventario i ON i.id = v.inventario_id
+             WHERE DATE(v.fecha) = ?
+
+             ORDER BY fecha DESC"
+        );
+        $stmt->execute([$hoy, $hoy]);
+        return $stmt->fetchAll();
+    }
+
     private function buildWhere(?string $desde, ?string $hasta): array
     {
         $conditions = [];

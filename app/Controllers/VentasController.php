@@ -7,7 +7,7 @@ namespace App\Controllers;
 use App\Core\{Csrf, Logger, Request, Response, Session, View};
 use App\Enums\Rol;
 use App\Middleware\AuthMiddleware;
-use App\Models\{Configuracion, Inventario, Venta};
+use App\Models\{Caja, Configuracion, HistorialCaja, Inventario, Venta};
 
 final class VentasController
 {
@@ -24,12 +24,16 @@ final class VentasController
     {
         AuthMiddleware::handle();
 
+        $hoy = date('Y-m-d');
+
         $productos = array_values(array_filter(
             (new Inventario())->forSelect(),
             static fn(array $p): bool => !in_array((string) ($p['categoria'] ?? ''), ['Asado', 'Broaster'], true)
         ));
         $productosJson    = json_encode(array_values($productos), JSON_UNESCAPED_UNICODE);
-        $totalDia         = (new Venta())->sumToday();
+        $venta            = new Venta();
+        $totalDia         = $venta->sumToday();
+        $pendienteLiquidacion = $venta->sumPendingLiquidation();
         $rol              = Rol::tryFrom(Session::get('rol') ?? '');
         $dashboardUrl     = $rol?->dashboard() ?? '/dashboard';
         $categoriasConfig = self::CATEGORIAS_CONFIG;
@@ -51,9 +55,21 @@ final class VentasController
             ],
         ]);
 
+        // Datos de caja para el panel derecho
+        $cajaTotal       = (new Caja())->getTotal();
+        $cajaMovimientos = (new HistorialCaja())->filterUnifiedToday($hoy);
+        $cajaIngresos    = 0.0;
+        $cajaRetiros     = 0.0;
+        foreach ($cajaMovimientos as $m) {
+            if ($m['origen'] !== 'caja') continue;
+            if ($m['tipo'] === 'ingreso') $cajaIngresos += (float) $m['valor'];
+            if ($m['tipo'] === 'retiro')  $cajaRetiros  += (float) $m['valor'];
+        }
+
         View::render('ventas/index', compact(
             'productos', 'productosJson', 'totalDia', 'dashboardUrl',
-            'categoriasConfig', 'preciosPolloJson'
+            'categoriasConfig', 'preciosPolloJson', 'pendienteLiquidacion',
+            'cajaTotal', 'cajaMovimientos', 'cajaIngresos', 'cajaRetiros'
         ));
     }
 
@@ -97,6 +113,51 @@ final class VentasController
         } catch (\RuntimeException $e) {
             Response::json(['status' => 'error', 'mensaje' => $e->getMessage()], code: 422);
         }
+    }
+
+    public function liquidar(Request $request): void
+    {
+        AuthMiddleware::handle();
+        header('Content-Type: application/json; charset=utf-8');
+
+        $csrfToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+        if (!Csrf::validateToken($csrfToken)) {
+            Response::json(['status' => 'error', 'mensaje' => 'Token de seguridad inválido.'], code: 403);
+        }
+
+        $venta     = new Venta();
+        $pendiente = $venta->sumPendingLiquidation();
+        $count     = $venta->countPendingLiquidation();
+
+        if ($pendiente <= 0) {
+            Response::json(['status' => 'error', 'mensaje' => 'No hay ventas pendientes de liquidar.'], code: 422);
+        }
+
+        $usuario    = Session::get('usuario', '');
+        $caja       = new Caja();
+        $nuevoTotal = $caja->getTotal() + $pendiente;
+
+        $caja->updateTotal($nuevoTotal);
+        (new HistorialCaja())->create(
+            'ingreso',
+            $pendiente,
+            "Liquidación: {$count} venta(s)",
+            $usuario,
+        );
+        $venta->markAllLiquidated();
+
+        Logger::getInstance()->info('Liquidación de ventas a caja', [
+            'total'   => $pendiente,
+            'count'   => $count,
+            'usuario' => $usuario,
+        ]);
+
+        Response::json([
+            'status'         => 'ok',
+            'total'          => $pendiente,
+            'count'          => $count,
+            'nuevoCajaTotal' => $nuevoTotal,
+        ]);
     }
 
     private function validateVentaInput(array $data): array

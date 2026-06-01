@@ -390,6 +390,9 @@ async function registrarPedido() {
         totalDiaAcum += totalPedido;
         document.getElementById('totalDiaSpan').textContent = fmt(totalDiaAcum);
         agregarPedidoAlHistorial(ordenId, registrados, totalPedido);
+
+        pendienteAcum += totalPedido;
+        actualizarPanelLiquidacion();
     }
 }
 
@@ -484,3 +487,146 @@ function imprimirFactura() {
 document.getElementById('modalFactura').addEventListener('click', function (e) {
     if (e.target === this) this.classList.add('hidden');
 });
+
+/* ── Panel de liquidación ── */
+function actualizarPanelLiquidacion() {
+    const spanEl = document.getElementById('pendienteSpan');
+    const descEl = document.getElementById('pendienteDesc');
+    const btnEl  = document.getElementById('btnLiquidar');
+    if (!spanEl) return;
+    spanEl.textContent     = fmt(pendienteAcum);
+    descEl.textContent     = pendienteAcum > 0 ? 'Ventas pendientes de enviar a caja' : 'Todo está liquidado ✓';
+    btnEl.disabled         = pendienteAcum <= 0;
+    btnEl.style.opacity    = pendienteAcum > 0 ? '1' : '0.45';
+    btnEl.style.cursor     = pendienteAcum > 0 ? 'pointer' : 'not-allowed';
+}
+
+async function liquidarVentas() {
+    const btn    = document.getElementById('btnLiquidar');
+    const alerta = document.getElementById('alertaLiquidacion');
+    if (pendienteAcum <= 0) return;
+
+    btn.disabled    = true;
+    btn.textContent = '⏳ Enviando...';
+    alerta.classList.add('hidden');
+
+    try {
+        const res  = await fetch('/ventas/liquidar', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+            body:    JSON.stringify({}),
+        });
+        const data = await res.json();
+
+        if (data.status === 'ok') {
+            pendienteAcum = 0;
+            actualizarPanelLiquidacion();
+            mostrarAlerta(alerta, `✅ $${fmt(data.total)} enviados a caja`, 'ok');
+            await refrescarCaja();
+        } else {
+            mostrarAlerta(alerta, `⚠️ ${data.mensaje ?? 'Error al liquidar'}`, 'err');
+            btn.disabled    = false;
+            btn.textContent = '🏦 Enviar a Caja';
+        }
+    } catch {
+        mostrarAlerta(alerta, '⚠️ Error de conexión al liquidar', 'err');
+        btn.disabled    = false;
+        btn.textContent = '🏦 Enviar a Caja';
+    }
+}
+
+/* ── Panel de caja (derecha) ── */
+function mostrarAlerta(el, texto, tipo) {
+    el.textContent = texto;
+    if (tipo === 'ok') {
+        el.style.backgroundColor = '#134e2a';
+        el.style.color           = '#9ad9b0';
+        el.style.border          = '1px solid #1d6b3a';
+    } else {
+        el.style.backgroundColor = '#7f1d1d';
+        el.style.color           = '#fca5a5';
+        el.style.border          = '1px solid #ef4444';
+    }
+    el.classList.remove('hidden');
+}
+
+async function refrescarCaja() {
+    try {
+        const res  = await fetch('/caja/resumen', { headers: { 'X-CSRF-Token': CSRF } });
+        const data = await res.json();
+
+        const fmtPeso = n => Math.round(n).toLocaleString('es-CO');
+
+        const totalEl    = document.getElementById('cajaTotalDisplay');
+        const ingrEl     = document.getElementById('cajaIngresosDisplay');
+        const retEl      = document.getElementById('cajaRetirosDisplay');
+        const tbodyEl    = document.getElementById('cajaTbody');
+
+        if (totalEl) totalEl.textContent = fmtPeso(data.total);
+        if (ingrEl)  ingrEl.textContent  = `+$${fmtPeso(data.ingresosHoy)}`;
+        if (retEl)   retEl.textContent   = `-$${fmtPeso(data.retirosHoy)}`;
+
+        // También actualizar pendiente si cambió
+        if (typeof data.ventasPendientes === 'number') {
+            pendienteAcum = data.ventasPendientes;
+            actualizarPanelLiquidacion();
+        }
+
+        if (tbodyEl && Array.isArray(data.movimientos)) {
+            tbodyEl.innerHTML = data.movimientos.length === 0
+                ? '<tr><td colspan="3" style="padding:1.5rem; text-align:center; color:#9ca3af;">Sin actividad hoy</td></tr>'
+                : data.movimientos.map(m => {
+                    const esVenta  = m.origen === 'ventas';
+                    const esRetiro = m.tipo === 'retiro';
+                    const color    = esRetiro ? '#fca5a5' : (esVenta ? 'var(--oro)' : '#4ade80');
+                    const signo    = esRetiro ? '-' : '+';
+                    const icono    = esVenta ? '🛒' : (esRetiro ? '▼' : '▲');
+                    const liq      = esVenta && m.liquidado ? ' <span style="color:#6b7280;font-size:.7rem;">✓</span>' : '';
+                    const hora     = new Date(m.fecha.replace(' ', 'T')).toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
+                    const concepto = (m.concepto || '').replace(/</g, '&lt;');
+                    const ordenId  = esVenta && m.orden_id ? ` <span style="color:#6b7280;font-size:.7rem;">#${m.orden_id}</span>` : '';
+                    return `<tr class="border-b" style="border-color:var(--rojo-mid);">
+                        <td class="px-3 py-2" style="color:${color}; font-weight:700;">${icono} ${concepto}${liq}${ordenId}</td>
+                        <td class="px-3 py-2 text-right whitespace-nowrap font-black" style="color:${color};">${signo}$${fmtPeso(m.valor)}</td>
+                        <td class="px-3 py-2 text-right text-xs" style="color:#9ca3af;">${hora}</td>
+                    </tr>`;
+                }).join('');
+        }
+    } catch (e) {
+        console.error('Error al refrescar caja:', e);
+    }
+}
+
+async function submitAjusteCaja(event, accion) {
+    event.preventDefault();
+    const form    = event.target;
+    const alerta  = document.getElementById('alertaCaja');
+    const btn     = form.querySelector('button[type="submit"]');
+    const valor   = parseFloat(form.querySelector('[name="valor"]').value);
+    const concepto = form.querySelector('[name="concepto"]').value.trim();
+
+    if (!valor || valor <= 0) return;
+    btn.disabled = true;
+
+    try {
+        const res  = await fetch('/caja/ajuste', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+            body:    JSON.stringify({ accion, valor, concepto }),
+        });
+        const data = await res.json();
+
+        if (data.status === 'ok') {
+            form.reset();
+            mostrarAlerta(alerta, `✅ ${accion === 'anadir' ? 'Añadido' : 'Retirado'} $${fmt(data.valor)} correctamente`, 'ok');
+            await refrescarCaja();
+        } else {
+            mostrarAlerta(alerta, `⚠️ ${data.mensaje ?? 'Error'}`, 'err');
+        }
+    } catch {
+        mostrarAlerta(alerta, '⚠️ Error de conexión', 'err');
+    } finally {
+        btn.disabled = false;
+    }
+    setTimeout(() => alerta.classList.add('hidden'), 4000);
+}

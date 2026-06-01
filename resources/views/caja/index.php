@@ -10,7 +10,8 @@ $ayer = isset($ayer) ? (string) $ayer : date('Y-m-d', strtotime('-1 day'));
 $lunEs = isset($lunEs) ? (string) $lunEs : date('Y-m-d', strtotime('monday this week'));
 $priMes = isset($priMes) ? (string) $priMes : date('Y-m-01');
 $dashboardUrl = isset($dashboardUrl) ? (string) $dashboardUrl : '/dashboard';
-$movimientosHoy = (isset($movimientosHoy) && is_array($movimientosHoy)) ? $movimientosHoy : [];
+$movimientosHoy      = (isset($movimientosHoy) && is_array($movimientosHoy)) ? $movimientosHoy : [];
+$ventasPendientesHoy = isset($ventasPendientesHoy) ? (float) $ventasPendientesHoy : 0.0;
 
 $pageTitle = 'Caja — Kokoro Pollo';
 require dirname(__DIR__) . '/partials/head.php';
@@ -32,7 +33,7 @@ require dirname(__DIR__) . '/partials/head.php';
     </div>
 
     <!-- Mini-resumen del día -->
-    <div class="grid grid-cols-2 gap-3 mb-6">
+    <div class="grid grid-cols-2 gap-3 mb-3">
         <div class="rounded-xl px-4 py-3 text-center" style="background-color:#134e2a;">
             <div class="text-xs font-bold uppercase tracking-wider text-green-300 mb-1">Ingresos hoy</div>
             <div class="text-2xl font-black text-green-300">
@@ -46,6 +47,26 @@ require dirname(__DIR__) . '/partials/head.php';
             </div>
         </div>
     </div>
+
+    <!-- Ventas pendientes de liquidar -->
+    <?php if ($ventasPendientesHoy > 0): ?>
+    <div class="rounded-xl px-5 py-4 mb-6 flex items-center justify-between gap-4 flex-wrap"
+         style="background-color:#3a2a0f; border:2px solid var(--oro);">
+        <div>
+            <div class="text-xs font-bold uppercase tracking-wider mb-1" style="color:var(--oro);">
+                🛒 Ventas sin liquidar
+            </div>
+            <div class="text-2xl font-black" style="color:var(--oro);">
+                $<?= number_format($ventasPendientesHoy, 0, ',', '.') ?>
+            </div>
+        </div>
+        <a href="/ventas" class="font-bold text-sm px-5 py-2 rounded-xl btn-primary">
+            Ir a Ventas →
+        </a>
+    </div>
+    <?php else: ?>
+    <div class="mb-6"></div>
+    <?php endif; ?>
 
     <!-- Filtros rápidos -->
     <div class="rounded-2xl shadow-xl p-4 mb-6" style="background-color:var(--rojo-card);">
@@ -123,29 +144,40 @@ require dirname(__DIR__) . '/partials/head.php';
 
     </div>
 
-    <!-- Movimientos de hoy -->
+    <!-- Movimientos de hoy (unificado: ventas + caja) -->
     <?php if (!empty($movimientosHoy)): ?>
     <div class="rounded-2xl shadow-xl overflow-hidden" style="background-color:var(--rojo-card);">
         <div class="px-5 py-4" style="background-color:var(--rojo-mid);">
             <h3 class="font-black text-lg uppercase tracking-wider" style="color:var(--oro);">
-                🕐 Movimientos de hoy
+                🕐 Actividad de hoy
             </h3>
         </div>
-        <div class="overflow-x-auto" style="max-height:280px; overflow-y:auto;">
+        <div class="overflow-x-auto" style="max-height:360px; overflow-y:auto;">
             <table class="w-full text-base">
                 <thead class="sticky top-0" style="background-color:var(--rojo-mid);">
                     <tr style="color:var(--oro);">
                         <th class="px-4 py-3 text-left font-bold">Tipo</th>
-                        <th class="px-4 py-3 text-left font-bold">Concepto</th>
+                        <th class="px-4 py-3 text-left font-bold">Detalle</th>
                         <th class="px-4 py-3 text-left font-bold">Valor</th>
                         <th class="px-4 py-3 text-left font-bold">Hora</th>
                     </tr>
                 </thead>
                 <tbody>
-                <?php foreach (array_reverse($movimientosHoy) as $m): ?>
+                <?php foreach ($movimientosHoy as $m): ?>
+                    <?php
+                        $esVenta    = $m['origen'] === 'ventas';
+                        $esIngreso  = $m['tipo'] === 'ingreso';
+                        $esRetiro   = $m['tipo'] === 'retiro';
+                        $liquidado  = $esVenta && ($m['liquidado'] ?? 0);
+                    ?>
                     <tr class="border-b text-white tr-dark" style="border-color:var(--rojo-mid);">
-                        <td class="px-4 py-3">
-                            <?php if ($m['tipo'] === 'ingreso'): ?>
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            <?php if ($esVenta): ?>
+                                <span class="font-bold" style="color:var(--oro);">🛒 Venta</span>
+                                <?php if ($liquidado): ?>
+                                    <span class="text-xs ml-1" style="color:#9ca3af;">✓</span>
+                                <?php endif; ?>
+                            <?php elseif ($esIngreso): ?>
                                 <span class="font-bold text-green-400">▲ Ingreso</span>
                             <?php else: ?>
                                 <span class="font-bold" style="color:#fca5a5;">▼ Retiro</span>
@@ -153,10 +185,13 @@ require dirname(__DIR__) . '/partials/head.php';
                         </td>
                         <td class="px-4 py-3" style="color:#d1d5db;">
                             <?= View::escape($m['concepto'] ?: '—') ?>
+                            <?php if ($esVenta && !empty($m['orden_id'])): ?>
+                                <span class="text-xs ml-1" style="color:#6b7280;">#<?= View::escape($m['orden_id']) ?></span>
+                            <?php endif; ?>
                         </td>
-                        <td class="px-4 py-3 font-bold <?= $m['tipo'] === 'ingreso' ? 'text-green-400' : '' ?>"
-                            <?= $m['tipo'] === 'retiro' ? 'style="color:#fca5a5;"' : '' ?>>
-                            <?= $m['tipo'] === 'ingreso' ? '+' : '-' ?>$<?= number_format((float) $m['valor'], 0, ',', '.') ?>
+                        <td class="px-4 py-3 font-bold"
+                            style="color:<?= $esRetiro ? '#fca5a5' : ($esVenta ? 'var(--oro)' : '#4ade80') ?>;">
+                            <?= $esRetiro ? '-' : '+' ?>$<?= number_format((float) $m['valor'], 0, ',', '.') ?>
                         </td>
                         <td class="px-4 py-3 text-sm" style="color:#9ca3af;">
                             <?= date('H:i', strtotime($m['fecha'])) ?>
@@ -169,7 +204,7 @@ require dirname(__DIR__) . '/partials/head.php';
     </div>
     <?php else: ?>
     <div class="rounded-2xl p-6 text-center" style="background-color:var(--rojo-card);">
-        <p class="text-lg" style="color:#9ca3af;">Sin movimientos registrados hoy</p>
+        <p class="text-lg" style="color:#9ca3af;">Sin actividad registrada hoy</p>
     </div>
     <?php endif; ?>
 
