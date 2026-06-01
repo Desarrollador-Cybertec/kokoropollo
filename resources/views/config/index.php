@@ -1,6 +1,10 @@
 <?php
 declare(strict_types=1);
 use App\Core\{Csrf, View};
+$empaqueActivo       = $empaqueActivo       ?? '0';
+$empaqueInventarioId = $empaqueInventarioId ?? '0';
+$inventarioItems     = $inventarioItems     ?? [];
+$dashboardUrl        = $dashboardUrl        ?? '/dashboard';
 
 $pageTitle = 'Configuración — Kokoro Pollo';
 require dirname(__DIR__) . '/partials/head.php';
@@ -79,6 +83,43 @@ require dirname(__DIR__) . '/partials/head.php';
                            class="w-full text-xl font-bold px-4 py-3 rounded-xl input-dark">
                 </div>
                 <span class="text-base font-semibold" style="color:#9ca3af;">pollos / ciclo</span>
+            </div>
+        </div>
+
+        <!-- Empaque automático -->
+        <div class="rounded-2xl shadow-xl p-6" style="background-color:var(--rojo-card);">
+            <h2 class="text-xl font-black mb-2 flex items-center gap-2" style="color:var(--oro);">
+                📦 Empaque automático
+            </h2>
+            <p class="text-xs mb-5" style="color:#9ca3af;">
+                Descuenta 1 unidad del inventario por cada pedido <strong style="color:white;">Para llevar</strong>.
+                Útil para cajas de empaque o bolsas.
+            </p>
+            <div class="flex items-center gap-3 mb-4">
+                <input type="checkbox" id="chkEmpaque" name="empaque_activo" value="1"
+                       <?= $empaqueActivo === '1' ? 'checked' : '' ?>
+                       class="w-5 h-5 accent-yellow-500">
+                <label for="chkEmpaque" class="text-base font-bold text-white cursor-pointer">
+                    Activar descuento automático de empaque
+                </label>
+            </div>
+            <div>
+                <label class="text-sm font-bold block mb-2" style="color:var(--oro);">
+                    Artículo de empaque (del inventario)
+                </label>
+                <select name="empaque_inventario_id"
+                        class="w-full text-base px-4 py-3 rounded-xl input-dark"
+                        style="color:var(--oro);">
+                    <option value="0" style="background-color:var(--rojo-deep);">— Sin seleccionar —</option>
+                    <?php foreach ($inventarioItems as $item): ?>
+                    <option value="<?= (int)$item['id'] ?>"
+                            style="background-color:var(--rojo-deep);"
+                            <?= ((int)$empaqueInventarioId === (int)$item['id']) ? 'selected' : '' ?>>
+                        <?= View::escape($item['articulo']) ?>
+                        (<?= (int)$item['cantidad'] ?> en stock)
+                    </option>
+                    <?php endforeach; ?>
+                </select>
             </div>
         </div>
 

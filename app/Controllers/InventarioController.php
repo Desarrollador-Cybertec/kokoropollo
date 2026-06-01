@@ -7,7 +7,7 @@ namespace App\Controllers;
 use App\Core\{Csrf, Request, Response, Session, View};
 use App\Enums\Rol;
 use App\Middleware\AuthMiddleware;
-use App\Models\Inventario;
+use App\Models\{Auditoria, Inventario};
 
 final class InventarioController
 {
@@ -52,6 +52,10 @@ final class InventarioController
         }
 
         (new Inventario())->create($articulo, $categoria, $cantidad, $valor);
+        (new Auditoria())->registrar(
+            Session::get('usuario', ''), 'inventario', 'crear',
+            "Artículo creado: {$articulo} ({$categoria})"
+        );
         Session::flash('exito', "Artículo \"{$articulo}\" agregado correctamente.");
         Response::redirect('/inventario');
     }
@@ -78,6 +82,10 @@ final class InventarioController
 
         if ($id > 0 && $articulo !== '' && in_array($categoria, Inventario::categorias(), strict: true)) {
             (new Inventario())->update($id, $articulo, $categoria, $cantidad, $valor);
+            (new Auditoria())->registrar(
+                Session::get('usuario', ''), 'inventario', 'editar',
+                "Artículo editado: {$articulo} (id={$id})"
+            );
             Session::flash('exito', "Artículo \"{$articulo}\" actualizado correctamente.");
         }
 
@@ -95,7 +103,12 @@ final class InventarioController
         $id = (int) $request->post('id', 0);
         if ($id > 0) {
             try {
+                $item = (new Inventario())->find($id);
                 (new Inventario())->delete($id);
+                (new Auditoria())->registrar(
+                    Session::get('usuario', ''), 'inventario', 'eliminar',
+                    "Artículo eliminado: " . ($item['articulo'] ?? "id={$id}")
+                );
                 Session::flash('exito', 'Artículo eliminado correctamente.');
             } catch (\PDOException $e) {
                 // FK violation: el artículo tiene ventas registradas

@@ -59,6 +59,16 @@ final class Inventario
         $stmt->execute([$id]);
     }
 
+    /** Descuenta 1 unidad de forma atómica; retorna false si stock ya es 0 */
+    public function deductOne(int $id): bool
+    {
+        $stmt = Database::getInstance()->prepare(
+            'UPDATE inventario SET cantidad = cantidad - 1 WHERE id = ? AND cantidad > 0'
+        );
+        $stmt->execute([$id]);
+        return $stmt->rowCount() > 0;
+    }
+
     public function countCritico(): int
     {
         $stmt = Database::getInstance()->query(

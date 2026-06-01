@@ -13,8 +13,8 @@ enum Rol: string
     /** Jerarquía: Jefe >= Administrador >= Empleado */
     public function atLeast(Rol $required): bool
     {
-        $nivel = [Rol::Empleado => 1, Rol::Administrador => 2, Rol::Jefe => 3];
-        return $nivel[$this] >= $nivel[$required];
+        $nivel = ['Empleado' => 1, 'Administrador' => 2, 'Jefe' => 3];
+        return ($nivel[$this->value] ?? 0) >= ($nivel[$required->value] ?? 0);
     }
 
     public function dashboard(): string

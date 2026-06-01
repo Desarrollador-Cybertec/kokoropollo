@@ -7,7 +7,7 @@ namespace App\Controllers;
 use App\Core\{Csrf, Request, Response, Session, View};
 use App\Enums\Rol;
 use App\Middleware\AuthMiddleware;
-use App\Models\{CreditoEmpleado, Usuarios};
+use App\Models\{Auditoria, CreditoEmpleado};
 
 final class CreditosController
 {
@@ -59,6 +59,10 @@ final class CreditosController
             (new CreditoEmpleado())->crear(
                 $empleadoId, $valor, $fechaPrestamo, $fechaCompromiso, $observaciones, $creadorId
             );
+            (new Auditoria())->registrar(
+                Session::get('usuario', ''), 'creditos', 'crear',
+                "Crédito $" . number_format($valor, 0, ',', '.') . " a empleado id={$empleadoId}"
+            );
             Response::json(['status' => 'ok', 'mensaje' => 'Crédito registrado correctamente.']);
         } catch (\RuntimeException $e) {
             Response::json(['status' => 'error', 'mensaje' => $e->getMessage()], 422);
@@ -85,6 +89,10 @@ final class CreditosController
 
         try {
             (new CreditoEmpleado())->pagar($id, $usuarioId);
+            (new Auditoria())->registrar(
+                Session::get('usuario', ''), 'creditos', 'pagar',
+                "Crédito id={$id} marcado como pagado"
+            );
             Response::json(['status' => 'ok', 'mensaje' => 'Pago registrado correctamente.']);
         } catch (\RuntimeException $e) {
             Response::json(['status' => 'error', 'mensaje' => $e->getMessage()], 422);
@@ -119,8 +127,9 @@ final class CreditosController
 
     private function soloAdmin(): void
     {
-        if (Session::get('rol') !== Rol::Administrador->value) {
-            Response::redirect('/dashboard');
+        $rol = Rol::tryFrom(Session::get('rol') ?? '');
+        if ($rol === null || !$rol->atLeast(Rol::Administrador)) {
+            Response::redirect($rol?->dashboard() ?? '/');
         }
     }
 

@@ -110,13 +110,24 @@ final class VentasController
                 direccion:      $direccion,
             );
 
+            // Descontar empaque automático en el primer ítem de cada pedido para llevar
+            $empaqueId = 0;
+            $primerItem = filter_var($json['primer_item'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            if ($primerItem && $tipoPedido === 'llevar') {
+                $empCfg    = (new Configuracion())->getMany(['empaque_activo', 'empaque_inventario_id']);
+                $empaqueId = (int) ($empCfg['empaque_inventario_id'] ?? 0);
+                if (($empCfg['empaque_activo'] ?? '0') === '1' && $empaqueId > 0) {
+                    (new Inventario())->deductOne($empaqueId);
+                }
+            }
+
             Logger::getInstance()->info('Venta registrada', [
                 'id'      => $ventaId,
                 'total'   => $total,
                 'usuario' => $usuario,
             ]);
 
-            Response::json(['status' => 'ok', 'id' => $ventaId, 'total' => $total]);
+            Response::json(['status' => 'ok', 'id' => $ventaId, 'total' => $total, 'empaque_id' => $empaqueId]);
         } catch (\RuntimeException $e) {
             Response::json(['status' => 'error', 'mensaje' => $e->getMessage()], code: 422);
         }

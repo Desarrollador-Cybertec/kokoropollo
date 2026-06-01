@@ -213,6 +213,46 @@ final class Reporte
         return $stmt->fetchAll();
     }
 
+    // ── VENTAS POR EMPLEADO ────────────────────────────────────
+
+    /** Ranking de empleados en un rango de fechas */
+    public function ventasPorEmpleado(string $desde, string $hasta): array
+    {
+        $stmt = Database::getInstance()->prepare(
+            "SELECT
+                v.usuario,
+                COUNT(DISTINCT v.orden_id)                                       AS pedidos,
+                COALESCE(SUM(v.total), 0)                                        AS ventas,
+                COALESCE(SUM(v.total) / NULLIF(COUNT(DISTINCT v.orden_id), 0), 0) AS ticket_promedio,
+                COUNT(DISTINCT CASE WHEN v.tipo_pedido='local'  THEN v.orden_id END) AS pedidos_local,
+                COUNT(DISTINCT CASE WHEN v.tipo_pedido='llevar' THEN v.orden_id END) AS pedidos_llevar,
+                COUNT(DISTINCT DATE(v.fecha))                                    AS dias_activo
+             FROM ventas v
+             WHERE v.fecha BETWEEN ? AND ?
+             GROUP BY v.usuario
+             ORDER BY ventas DESC"
+        );
+        $stmt->execute([$desde . ' 00:00:00', $hasta . ' 23:59:59']);
+        return $stmt->fetchAll();
+    }
+
+    /** Ventas día a día de un empleado en particular */
+    public function ventasEmpleadoPorDia(string $desde, string $hasta, string $usuario): array
+    {
+        $stmt = Database::getInstance()->prepare(
+            "SELECT
+                DATE(v.fecha)            AS dia,
+                COUNT(DISTINCT v.orden_id) AS pedidos,
+                COALESCE(SUM(v.total), 0)  AS ventas
+             FROM ventas v
+             WHERE v.fecha BETWEEN ? AND ? AND v.usuario = ?
+             GROUP BY DATE(v.fecha)
+             ORDER BY dia ASC"
+        );
+        $stmt->execute([$desde . ' 00:00:00', $hasta . ' 23:59:59', $usuario]);
+        return $stmt->fetchAll();
+    }
+
     // ── HELPERS ────────────────────────────────────────────────
 
     /** Semana actual: lunes → domingo */

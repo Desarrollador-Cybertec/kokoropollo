@@ -46,6 +46,14 @@ require dirname(__DIR__) . '/partials/head.php';
             <p class="text-sm" style="color:#9ca3af;">Ranking por unidades e ingresos en cualquier período</p>
         </a>
 
+        <a href="/reportes/empleados"
+           class="rounded-2xl p-7 shadow-xl flex flex-col items-center gap-3 text-center transition-all hover:scale-105 active:scale-95"
+           style="background-color:var(--rojo-card); border:2px solid var(--rojo-mid);">
+            <span class="text-5xl">👤</span>
+            <h2 class="font-black text-xl" style="color:var(--oro);">Por Empleado</h2>
+            <p class="text-sm" style="color:#9ca3af;">Ventas, pedidos y ticket promedio por persona</p>
+        </a>
+
     </div>
 </div>
 

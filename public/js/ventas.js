@@ -342,7 +342,8 @@ async function registrarPedido() {
     const registrados = [];
     let totalPedido  = 0;
 
-    for (const item of carrito) {
+    for (let idx = 0; idx < carrito.length; idx++) {
+        const item = carrito[idx];
         try {
             const res = await fetch('/ventas/store', {
                 method:  'POST',
@@ -353,6 +354,7 @@ async function registrarPedido() {
                     cantidad:        item.cantInv,
                     precio_unitario: item.precio,
                     tipo_pedido:     tipoPedidoActual,
+                    primer_item:     idx === 0,
                     ...getDatosCliente(),
                 }),
             });
@@ -363,6 +365,7 @@ async function registrarPedido() {
                 registrados.push(item);
                 totalPedido += item.subtotal;
                 actualizarStockCard(item.id, item.cantInv);
+                if (data.empaque_id > 0) actualizarStockCard(data.empaque_id, 1);
             }
         } catch {
             errores.push(`${item.nombre}: error de conexión`);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Controllers\{
     AlsesController,
+    AuditoriaController,
     AuthController,
     CajaAperturaController,
     CajaCierreController,
@@ -76,6 +77,10 @@ $router->get('/reportes/diario',     [ReportesController::class, 'diario']);
 $router->get('/reportes/semanal',    [ReportesController::class, 'semanal']);
 $router->get('/reportes/mensual',    [ReportesController::class, 'mensual']);
 $router->get('/reportes/productos',  [ReportesController::class, 'productos']);
+$router->get('/reportes/empleados',  [ReportesController::class, 'empleados']);
+
+// ── Auditoría (solo Jefe) ──────────────────────────────────
+$router->get('/auditoria', [AuditoriaController::class, 'index']);
 
 // ── Usuarios (solo Administrador) ──────────────────────────
 $router->get('/usuarios',           [UsuariosController::class, 'index']);

@@ -180,10 +180,10 @@ require dirname(__DIR__) . '/partials/head.php';
             ['/reportes',   '📊', 'REPORTES'],
             ['/usuarios',   '👥', 'USUARIOS'],
             ['/config',     '⚙️', 'CONFIG'],
+            ['/auditoria',  '🔍', 'AUDITORÍA'],
             ['/caja',       '💰', 'CAJA'],
             ['/creditos',   '💳', 'CRÉDITOS'],
             ['/inventario', '📦', 'INVENTARIO'],
-            ['/historial',  '📋', 'HISTORIAL'],
             ['/ventas',     '🛒', 'VENTAS'],
         ];
         foreach ($accesos as [$url, $icon, $label]):

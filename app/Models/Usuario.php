@@ -17,6 +17,15 @@ final class Usuario
         return $stmt->fetchAll();
     }
 
+    public function find(int $id): array|false
+    {
+        $stmt = Database::getInstance()->prepare(
+            'SELECT id, nombre, usuario, rol FROM usuarios WHERE id = ?'
+        );
+        $stmt->execute([$id]);
+        return $stmt->fetch();
+    }
+
     public function create(string $nombre, string $usuario, string $clave, Rol $rol): bool
     {
         $hash = password_hash($clave, PASSWORD_DEFAULT);

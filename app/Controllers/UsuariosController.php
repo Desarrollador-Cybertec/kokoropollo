@@ -7,7 +7,7 @@ namespace App\Controllers;
 use App\Core\{Csrf, Logger, Request, Response, Session, View};
 use App\Enums\Rol;
 use App\Middleware\RoleMiddleware;
-use App\Models\Usuario;
+use App\Models\{Auditoria, Usuario};
 
 final class UsuariosController
 {
@@ -51,6 +51,12 @@ final class UsuariosController
         }
 
         $ok = (new Usuario())->create($nombre, $usuario, $clave, $rol);
+        if ($ok) {
+            (new Auditoria())->registrar(
+                Session::get('usuario', ''), 'usuarios', 'crear',
+                "Usuario creado: {$usuario} (Rol: {$rol->value})"
+            );
+        }
         Response::json(
             $ok
                 ? ['status' => 'ok',    'mensaje' => 'Usuario creado correctamente.']
@@ -84,6 +90,12 @@ final class UsuariosController
         }
 
         $ok = (new Usuario())->update($id, $nombre, $usuario, $rol, ($clave !== '' ? $clave : null));
+        if ($ok) {
+            (new Auditoria())->registrar(
+                Session::get('usuario', ''), 'usuarios', 'editar',
+                "Usuario editado: {$usuario} (Rol: {$rol->value})"
+            );
+        }
         Response::json(
             $ok
                 ? ['status' => 'ok',    'mensaje' => 'Usuario actualizado correctamente.']
@@ -107,8 +119,15 @@ final class UsuariosController
             Response::json(['status' => 'error', 'mensaje' => 'ID inválido.']);
         }
 
+        $u  = (new Usuario())->find($id);
         $ok = (new Usuario())->delete($id);
         Logger::getInstance()->info('Usuario eliminado', ['id' => $id, 'por' => Session::get('usuario')]);
+        if ($ok && $u) {
+            (new Auditoria())->registrar(
+                Session::get('usuario', ''), 'usuarios', 'eliminar',
+                "Usuario eliminado: {$u['usuario']}"
+            );
+        }
 
         Response::json(
             $ok

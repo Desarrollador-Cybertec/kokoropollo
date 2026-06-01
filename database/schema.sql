@@ -102,6 +102,10 @@ CREATE TABLE IF NOT EXISTS `configuracion` (
 
 -- Precios iniciales en 0 (configurar desde /config)
 INSERT IGNORE INTO `configuracion` (`clave`, `valor`) VALUES
-    ('precio_asado_cuarto', '0'),
-    ('precio_asado_medio',  '0'),
-    ('precio_asado_entero', '0');
+    ('precio_asado_cuarto',        '0'),
+    ('precio_asado_medio',         '0'),
+    ('precio_asado_entero',        '0'),
+    ('empaque_activo',             '0'),
+    ('empaque_inventario_id',      '0'),
+    ('condimentos_cuartos_offset', '0'),
+    ('condimentos_pollos_por_ciclo','1000');
