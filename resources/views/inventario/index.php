@@ -27,9 +27,7 @@ function formatCantidad(int $cuartos, string $categoria): string
 
 $categorias = [
     'Pollo Crudo'     => ['emoji' => '🐔', 'color' => 'bg-amber-900 text-amber-200'],
-    'Papas'           => ['emoji' => '🥔', 'color' => 'bg-yellow-800 text-yellow-200'],
     'Acompañamientos' => ['emoji' => '🍌', 'color' => 'bg-lime-900 text-lime-200'],
-    'Salsas'          => ['emoji' => '🫙', 'color' => 'bg-teal-900 text-teal-200'],
     'Bebidas'         => ['emoji' => '🥤', 'color' => 'bg-blue-900 text-blue-200'],
     'Otros'           => ['emoji' => '📦', 'color' => 'bg-gray-700 text-gray-200'],
 ];
@@ -75,6 +73,9 @@ require dirname(__DIR__) . '/partials/head.php';
             $categoriaActual = $editarItem['categoria'] ?? 'Otros';
             if (in_array($categoriaActual, ['Pollo', 'Asado', 'Broaster'], true)) {
                 $categoriaActual = 'Pollo Crudo';
+            }
+            if (in_array($categoriaActual, ['Papas', 'Salsas'], true)) {
+                $categoriaActual = 'Acompañamientos';
             }
             $esPolloForm     = $categoriaActual === 'Pollo Crudo';
             $cuartosRaw      = (int) ($editarItem['cantidad'] ?? 0);
@@ -177,6 +178,9 @@ require dirname(__DIR__) . '/partials/head.php';
                     $categoriaItem = (string) ($item['categoria'] ?? 'Otros');
                     if (in_array($categoriaItem, ['Pollo', 'Asado', 'Broaster'], true)) {
                         $categoriaItem = 'Pollo Crudo';
+                    }
+                    if (in_array($categoriaItem, ['Papas', 'Salsas'], true)) {
+                        $categoriaItem = 'Acompañamientos';
                     }
                     $cat = $categorias[$categoriaItem] ?? $categorias['Otros'];
                 ?>

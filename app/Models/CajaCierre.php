@@ -57,10 +57,11 @@ final class CajaCierre
         $stmt->execute([$hoy]);
         $otrasEntradas = (float) $stmt->fetchColumn();
 
-        // Retiros manuales de caja del día
+        // Retiros manuales de caja del día (excluyendo créditos y pagos que se cuentan por separado)
         $stmt = $pdo->prepare(
             "SELECT COALESCE(SUM(valor),0) FROM historial_caja
-             WHERE DATE(fecha) = ? AND tipo = 'retiro'"
+             WHERE DATE(fecha) = ? AND tipo = 'retiro'
+             AND concepto NOT LIKE 'Crédito empleado:%'"
         );
         $stmt->execute([$hoy]);
         $gastosCaja = (float) $stmt->fetchColumn();

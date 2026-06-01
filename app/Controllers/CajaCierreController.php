@@ -64,13 +64,19 @@ final class CajaCierreController
 
         $usuarioId         = (int) Session::get('usuario_id', 0);
         $aperturaId        = (int) $apertura['id'];
-        $ventas            = max(0.0, (float) $request->post('ventas', 0));
-        $otrasEntradas     = max(0.0, (float) $request->post('otras_entradas', 0));
-        $gastosCaja        = max(0.0, (float) $request->post('gastos_caja', 0));
-        $creditosEmpleados = max(0.0, (float) $request->post('creditos_empleados', 0));
-        $alses             = max(0.0, (float) $request->post('alses', 0));
-        $otrasSalidas      = max(0.0, (float) $request->post('otras_salidas', 0));
         $observaciones     = trim($request->post('observaciones', ''));
+
+        // C-10: Recalcular montos auditables desde BD — no confiar en valores POST
+        // Un admin malintencionado podría manipular ventas/gastos en el formulario
+        $precalc           = (new CajaCierre())->precalcularDia($aperturaId);
+        $ventas            = $precalc['ventas'];
+        $gastosCaja        = $precalc['gastos_caja'];
+        $creditosEmpleados = $precalc['creditos_empleados'];
+        $alses             = $precalc['alses'];
+
+        // Estas dos no tienen fuente de verdad en BD: vienen del POST
+        $otrasEntradas = max(0.0, (float) $request->post('otras_entradas', 0));
+        $otrasSalidas  = max(0.0, (float) $request->post('otras_salidas',  0));
 
         $denominaciones = [];
         foreach (CajaApertura::DENOMINACIONES as $valor) {

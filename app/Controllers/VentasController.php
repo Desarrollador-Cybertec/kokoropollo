@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use App\Core\{Csrf, Logger, Request, Response, Session, View};
+use App\Core\{Csrf, Database, Logger, Request, Response, Session, View};
 use App\Enums\Rol;
 use App\Middleware\AuthMiddleware;
-use App\Models\{Caja, Configuracion, HistorialCaja, Inventario, Venta};
+use App\Models\{Auditoria, Caja, Configuracion, HistorialCaja, Inventario, Venta};
 
 final class VentasController
 {
-    private const CATEGORIAS_CONFIG = [
+    private const CATEGORIAS_META = [
         'Pollo Crudo'     => ['emoji' => '🐔', 'label' => 'Pollo'],
         'Papas'           => ['emoji' => '🥔', 'label' => 'Papas'],
         'Acompañamientos' => ['emoji' => '🍌', 'label' => 'Acompañ.'],
@@ -58,12 +58,32 @@ final class VentasController
         // Virtuales van al inicio para que se vean primero en el filtro "Todos"
         $productos     = array_merge($virtuales, $productos);
         $productosJson = json_encode(array_values($productos), JSON_UNESCAPED_UNICODE);
+
+        // Mostrar solo categorías que realmente tienen productos hoy
+        $categoriasPresentes = [];
+        foreach ($productos as $p) {
+            $cat = (string) ($p['categoria'] ?? '');
+            if ($cat !== '') $categoriasPresentes[$cat] = true;
+        }
+        $categoriasConfig = [];
+        foreach (self::CATEGORIAS_META as $cat => $meta) {
+            if (isset($categoriasPresentes[$cat])) {
+                $categoriasConfig[$cat] = $meta;
+            }
+        }
+        // Si llega una categoría no mapeada, mostrarla igual con fallback.
+        foreach (array_keys($categoriasPresentes) as $cat) {
+            if (!isset($categoriasConfig[$cat])) {
+                $categoriasConfig[$cat] = ['emoji' => '📦', 'label' => $cat];
+            }
+        }
+
         $venta            = new Venta();
         $totalDia         = $venta->sumToday();
         $pendienteLiquidacion = $venta->sumPendingLiquidation();
         $rol              = Rol::tryFrom(Session::get('rol') ?? '');
+        $esAdmin          = $rol?->atLeast(Rol::Administrador) ?? false;
         $dashboardUrl     = $rol?->dashboard() ?? '/dashboard';
-        $categoriasConfig = self::CATEGORIAS_CONFIG;
 
         $cfg = (new Configuracion())->getMany([
             'precio_asado_cuarto', 'precio_asado_medio', 'precio_asado_entero',
@@ -88,7 +108,7 @@ final class VentasController
         View::render('ventas/index', compact(
             'productos', 'productosJson', 'totalDia', 'dashboardUrl',
             'categoriasConfig', 'preciosPolloJson', 'pendienteLiquidacion',
-            'cajaTotal', 'cajaMovimientos', 'cajaIngresos', 'cajaRetiros'
+            'cajaTotal', 'cajaMovimientos', 'cajaIngresos', 'cajaRetiros', 'esAdmin'
         ));
     }
 
@@ -105,15 +125,28 @@ final class VentasController
         $json = $request->json() ?? [];
 
         [
-            'ordenId'        => $ordenId,
-            'inventarioId'   => $inventarioId,
-            'cantidad'       => $cantidad,
-            'precioUnitario' => $precioUnitario,
-            'itemDescripcion'=> $itemDescripcion,
+            'ordenId'         => $ordenId,
+            'inventarioId'    => $inventarioId,
+            'rawInventarioId' => $rawInventarioId,
+            'cantidad'        => $cantidad,
+            'precioUnitario'  => $precioUnitario,
+            'itemDescripcion' => $itemDescripcion,
         ] = $this->validateVentaInput($json);
 
-        $tipoPedido    = in_array($json['tipo_pedido'] ?? 'local', ['local', 'llevar'], true)
-                         ? $json['tipo_pedido'] : 'local';
+        // C-01: Verificar precio contra BD — el cliente no puede enviar precios arbitrarios
+        $precioEsperado = $this->getPrecioEsperado($inventarioId, $rawInventarioId);
+        if ($precioEsperado > 0 && $precioUnitario < $precioEsperado) {
+            Logger::getInstance()->warning('Intento de venta con precio manipulado', [
+                'inventario_id'   => $inventarioId ?? $rawInventarioId,
+                'precio_enviado'  => $precioUnitario,
+                'precio_esperado' => $precioEsperado,
+                'usuario'         => Session::get('usuario', ''),
+            ]);
+            Response::json(['status' => 'error', 'mensaje' => 'Precio inválido.'], code: 422);
+        }
+
+        $tipoPedidoRaw = in_array($json['tipo_pedido'] ?? 'local', ['local', 'llevar'], true)
+                        ? $json['tipo_pedido'] : 'local';
         $nombreCliente = isset($json['nombre_cliente'])
                          ? substr(trim((string) $json['nombre_cliente']), 0, 100) ?: null
                          : null;
@@ -123,6 +156,15 @@ final class VentasController
         $direccion     = isset($json['direccion'])
                          ? substr(trim((string) $json['direccion']), 0, 255) ?: null
                          : null;
+
+        // Solo es "para llevar" si realmente trae datos de entrega.
+        $tieneDatosEntrega = ($direccion !== null) || ($nombreCliente !== null) || ($telefono !== null);
+        $tipoPedido        = ($tipoPedidoRaw === 'llevar' && $tieneDatosEntrega) ? 'llevar' : 'local';
+        if ($tipoPedido === 'local') {
+            $nombreCliente = null;
+            $telefono      = null;
+            $direccion     = null;
+        }
 
         $total   = $precioUnitario * $cantidad;
         $usuario = Session::get('usuario', '');
@@ -159,7 +201,13 @@ final class VentasController
                 'usuario' => $usuario,
             ]);
 
-            Response::json(['status' => 'ok', 'id' => $ventaId, 'total' => $total, 'empaque_id' => $empaqueId]);
+            Response::json([
+                'status'      => 'ok',
+                'id'          => $ventaId,
+                'total'       => $total,
+                'empaque_id'  => $empaqueId,
+                'tipo_pedido' => $tipoPedido,
+            ]);
         } catch (\RuntimeException $e) {
             Response::json(['status' => 'error', 'mensaje' => $e->getMessage()], code: 422);
         }
@@ -168,6 +216,12 @@ final class VentasController
     public function liquidar(Request $request): void
     {
         AuthMiddleware::handle();
+        // C-02: Solo Administrador o superior puede liquidar ventas a caja
+        $rolActual = Rol::tryFrom(Session::get('rol') ?? '');
+        if (!$rolActual?->atLeast(Rol::Administrador)) {
+            Response::json(['status' => 'error', 'mensaje' => 'Acceso denegado.'], 403);
+        }
+
         header('Content-Type: application/json; charset=utf-8');
 
         $csrfToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
@@ -175,39 +229,33 @@ final class VentasController
             Response::json(['status' => 'error', 'mensaje' => 'Token de seguridad inválido.'], code: 403);
         }
 
-        $venta     = new Venta();
-        $pendiente = $venta->sumPendingLiquidation();
-        $count     = $venta->countPendingLiquidation();
+        $usuario = Session::get('usuario', '');
 
-        if ($pendiente <= 0) {
-            Response::json(['status' => 'error', 'mensaje' => 'No hay ventas pendientes de liquidar.'], code: 422);
+        try {
+            // C-04: liquidarACaja() es atómico con FOR UPDATE
+            $resultado = (new Venta())->liquidarACaja();
+
+            (new Auditoria())->registrar(
+                $usuario, 'ventas', 'liquidar',
+                'Liquidación a caja $' . number_format($resultado['pendiente'], 0, ',', '.') .
+                ' (' . $resultado['count'] . ' ventas)'
+            );
+
+            Logger::getInstance()->info('Liquidación de ventas a caja', [
+                'total'   => $resultado['pendiente'],
+                'count'   => $resultado['count'],
+                'usuario' => $usuario,
+            ]);
+
+            Response::json([
+                'status'         => 'ok',
+                'total'          => $resultado['pendiente'],
+                'count'          => $resultado['count'],
+                'nuevoCajaTotal' => $resultado['nuevo_total'],
+            ]);
+        } catch (\RuntimeException $e) {
+            Response::json(['status' => 'error', 'mensaje' => $e->getMessage()], code: 422);
         }
-
-        $usuario    = Session::get('usuario', '');
-        $caja       = new Caja();
-        $nuevoTotal = $caja->getTotal() + $pendiente;
-
-        $caja->updateTotal($nuevoTotal);
-        (new HistorialCaja())->create(
-            'ingreso',
-            $pendiente,
-            "Liquidación: {$count} venta(s)",
-            $usuario,
-        );
-        $venta->markAllLiquidated();
-
-        Logger::getInstance()->info('Liquidación de ventas a caja', [
-            'total'   => $pendiente,
-            'count'   => $count,
-            'usuario' => $usuario,
-        ]);
-
-        Response::json([
-            'status'         => 'ok',
-            'total'          => $pendiente,
-            'count'          => $count,
-            'nuevoCajaTotal' => $nuevoTotal,
-        ]);
     }
 
     private function validateVentaInput(array $data): array
@@ -218,7 +266,8 @@ final class VentasController
         $precioUnitario = (float) ($data['precio_unitario'] ?? 0);
 
         // inventario_id null = porción virtual; negativo = también virtual (del cliente JS)
-        $inventarioId   = ($rawId === null || (int)$rawId <= 0) ? null : (int) $rawId;
+        $rawInventarioId = ($rawId === null) ? 0 : (int) $rawId;
+        $inventarioId    = $rawInventarioId > 0 ? $rawInventarioId : null;
         $itemDescripcion = $inventarioId === null
             ? substr(trim((string) ($data['item_descripcion'] ?? '')), 0, 150)
             : null;
@@ -227,6 +276,34 @@ final class VentasController
             Response::json(['status' => 'error', 'mensaje' => 'Datos inválidos.'], code: 422);
         }
 
-        return compact('ordenId', 'inventarioId', 'cantidad', 'precioUnitario', 'itemDescripcion');
+        return compact('ordenId', 'inventarioId', 'rawInventarioId', 'cantidad', 'precioUnitario', 'itemDescripcion');
+    }
+
+    /**
+     * C-01: Obtiene el precio esperado desde BD para validar que el cliente no lo manipuló.
+     * - Ítems reales: lee inventario.valor
+     * - Porciones virtuales (-1 papa, -2 francesa, -3 maduro): lee configuracion
+     * Retorna 0.0 si no se puede determinar (no bloquear en caso de fallo de config).
+     */
+    private function getPrecioEsperado(?int $inventarioId, int $rawInventarioId): float
+    {
+        if ($inventarioId !== null) {
+            $stmt = Database::getInstance()->prepare(
+                'SELECT valor FROM inventario WHERE id = ? LIMIT 1'
+            );
+            $stmt->execute([$inventarioId]);
+            return (float) ($stmt->fetchColumn() ?: 0);
+        }
+
+        $claveMap = [-1 => 'porcion_papa_precio', -2 => 'porcion_francesa_precio', -3 => 'porcion_maduro_precio'];
+        if (isset($claveMap[$rawInventarioId])) {
+            $stmt = Database::getInstance()->prepare(
+                'SELECT valor FROM configuracion WHERE clave = ? LIMIT 1'
+            );
+            $stmt->execute([$claveMap[$rawInventarioId]]);
+            return (float) ($stmt->fetchColumn() ?: 0);
+        }
+
+        return 0.0;
     }
 }

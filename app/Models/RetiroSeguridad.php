@@ -14,7 +14,10 @@ final class RetiroSeguridad
         $pdo->beginTransaction();
 
         try {
-            $totalCaja = (float) $pdo->query('SELECT total FROM caja WHERE id = 1')->fetchColumn();
+            // C-05: FOR UPDATE para evitar race condition en lectura de saldo
+            $stmt = $pdo->prepare('SELECT total FROM caja WHERE id = 1 FOR UPDATE');
+            $stmt->execute();
+            $totalCaja = (float) $stmt->fetchColumn();
             if ($valor > $totalCaja) {
                 $pdo->rollBack();
                 throw new \RuntimeException('Saldo insuficiente en caja para el ALSÉ.');

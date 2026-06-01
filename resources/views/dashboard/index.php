@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+$totalDia = isset($totalDia) ? (float) $totalDia : 0.0;
+
 $pageTitle = 'Panel — Kokoro Pollo';
 require dirname(__DIR__) . '/partials/head.php';
 ?>

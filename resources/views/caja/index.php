@@ -371,56 +371,136 @@ require dirname(__DIR__) . '/partials/head.php';
     </div>
 
     <!-- Actividad de hoy -->
+    <!-- Actividad de hoy -->
     <?php if (!empty($movimientosHoy)): ?>
+    <?php
+    /* ── Agrupar ventas por pedido, preservar orden cronológico ── */
+    $displayRows      = [];
+    $pedidosAgrupados = [];
+
+    foreach ($movimientosHoy as $m) {
+        if ($m['origen'] === 'ventas') {
+            $oid = $m['orden_id'];
+            if (!isset($pedidosAgrupados[$oid])) {
+                $pedidosAgrupados[$oid] = [
+                    'tipo'           => 'pedido',
+                    'orden_id'       => $oid,
+                    'total'          => 0.0,
+                    'fecha'          => $m['fecha'],
+                    'liquidado'      => $m['liquidado'],
+                    'tipo_pedido'    => $m['tipo_pedido'] ?? 'local',
+                    'nombre_cliente' => $m['nombre_cliente'] ?? null,
+                    'direccion'      => $m['direccion'] ?? null,
+                    'usuario'        => $m['usuario'],
+                    'items'          => [],
+                ];
+            }
+            $pedidosAgrupados[$oid]['total'] += (float) $m['valor'];
+            $pedidosAgrupados[$oid]['items'][] = $m;
+        } else {
+            $displayRows[] = ['tipo' => 'caja', 'data' => $m, 'fecha' => $m['fecha']];
+        }
+    }
+    foreach ($pedidosAgrupados as $pedido) {
+        $displayRows[] = ['tipo' => 'pedido', 'data' => $pedido, 'fecha' => $pedido['fecha']];
+    }
+    usort($displayRows, fn($a, $b) => strcmp($b['fecha'], $a['fecha']));
+    ?>
     <div class="rounded-2xl shadow-xl overflow-hidden" style="background-color:var(--rojo-card);">
-        <div class="px-5 py-4" style="background-color:var(--rojo-mid);">
+        <div class="px-5 py-3 flex items-center justify-between" style="background-color:var(--rojo-mid);">
             <h3 class="font-black text-lg uppercase tracking-wider" style="color:var(--oro);">🕐 Actividad de hoy</h3>
+            <span class="text-xs font-semibold" style="color:#9ca3af;"><?= count($displayRows) ?> evento(s)</span>
         </div>
-        <div class="overflow-x-auto" style="max-height:360px; overflow-y:auto;">
-            <table class="w-full text-base">
-                <thead class="sticky top-0" style="background-color:var(--rojo-mid);">
-                    <tr style="color:var(--oro);">
-                        <th class="px-4 py-3 text-left font-bold">Tipo</th>
-                        <th class="px-4 py-3 text-left font-bold">Detalle</th>
-                        <th class="px-4 py-3 text-left font-bold">Valor</th>
-                        <th class="px-4 py-3 text-left font-bold">Hora</th>
-                    </tr>
-                </thead>
-                <tbody>
-                <?php foreach ($movimientosHoy as $m):
-                    $esVenta   = $m['origen'] === 'ventas';
-                    $esIngreso = $m['tipo']   === 'ingreso';
-                    $esRetiro  = $m['tipo']   === 'retiro';
-                    $liquidado = $esVenta && ($m['liquidado'] ?? 0);
-                ?>
-                <tr class="border-b text-white tr-dark" style="border-color:var(--rojo-mid);">
-                    <td class="px-4 py-3 whitespace-nowrap">
-                        <?php if ($esVenta): ?>
-                            <span class="font-bold" style="color:var(--oro);">🛒 Venta</span>
-                            <?php if ($liquidado): ?><span class="text-xs ml-1" style="color:#9ca3af;">✓</span><?php endif; ?>
-                        <?php elseif ($esIngreso): ?>
-                            <span class="font-bold text-green-400">▲ Ingreso</span>
-                        <?php else: ?>
-                            <span class="font-bold" style="color:#fca5a5;">▼ Retiro</span>
-                        <?php endif; ?>
-                    </td>
-                    <td class="px-4 py-3" style="color:#d1d5db;">
+        <div style="max-height:380px; overflow-y:auto;">
+        <?php foreach ($displayRows as $rowIdx => $row):
+            if ($row['tipo'] === 'caja'):
+                $m         = $row['data'];
+                $esIngreso = $m['tipo'] === 'ingreso';
+                $esRetiro  = $m['tipo'] === 'retiro';
+                $color     = $esRetiro ? '#fca5a5' : '#4ade80';
+                $signo     = $esRetiro ? '▼' : '▲';
+        ?>
+        <!-- Fila caja: ingreso / retiro / liquidación / crédito -->
+        <div class="flex items-center justify-between px-4 py-3 border-b"
+             style="border-color:var(--rojo-mid);">
+            <div class="flex items-center gap-3 min-w-0">
+                <span class="font-black text-sm" style="color:<?= $color ?>;"><?= $signo ?></span>
+                <div class="min-w-0">
+                    <p class="font-semibold text-sm text-white leading-tight truncate">
                         <?= View::escape($m['concepto'] ?: '—') ?>
-                        <?php if ($esVenta && !empty($m['orden_id'])): ?>
-                            <span class="text-xs ml-1" style="color:#6b7280;">#<?= View::escape($m['orden_id']) ?></span>
-                        <?php endif; ?>
-                    </td>
-                    <td class="px-4 py-3 font-bold"
-                        style="color:<?= $esRetiro ? '#fca5a5' : ($esVenta ? 'var(--oro)' : '#4ade80') ?>;">
-                        <?= $esRetiro ? '-' : '+' ?>$<?= number_format((float)$m['valor'], 0, ',', '.') ?>
-                    </td>
-                    <td class="px-4 py-3 text-sm" style="color:#9ca3af;">
-                        <?= date('H:i', strtotime($m['fecha'])) ?>
-                    </td>
-                </tr>
+                    </p>
+                    <p class="text-xs" style="color:#6b7280;"><?= View::escape($m['usuario']) ?></p>
+                </div>
+            </div>
+            <div class="text-right shrink-0 ml-3">
+                <p class="font-black text-sm" style="color:<?= $color ?>;">
+                    <?= $esRetiro ? '-' : '+' ?>$<?= number_format((float)$m['valor'], 0, ',', '.') ?>
+                </p>
+                <p class="text-xs" style="color:#6b7280;"><?= date('H:i', strtotime($m['fecha'])) ?></p>
+            </div>
+        </div>
+
+        <?php else:
+            $p        = $row['data'];
+            $esLlevar = ($p['tipo_pedido'] ?? 'local') === 'llevar';
+            $uid      = 'act_' . $rowIdx;
+        ?>
+        <!-- Bloque pedido agrupado (desplegable) -->
+        <div class="border-b" style="border-color:var(--rojo-mid);">
+            <button onclick="document.getElementById('<?= $uid ?>').classList.toggle('hidden')"
+                    class="w-full flex items-center justify-between px-4 py-3 text-left tr-dark transition-all">
+                <div class="flex items-center gap-3 min-w-0">
+                    <span class="text-base"><?= $esLlevar ? '🛵' : '🏠' ?></span>
+                    <div class="min-w-0">
+                        <p class="font-black text-sm leading-tight" style="color:var(--oro);">
+                            Pedido #<?= View::escape($p['orden_id']) ?>
+                            <?php if ($esLlevar): ?>
+                                <span class="font-semibold text-xs ml-1" style="color:#34d399;">· Para llevar</span>
+                            <?php endif; ?>
+                            <?php if (!empty($p['liquidado'])): ?>
+                                <span class="text-xs ml-1" style="color:#6b7280;">✓</span>
+                            <?php endif; ?>
+                        </p>
+                        <p class="text-xs leading-tight" style="color:#6b7280;">
+                            <?= count($p['items']) ?> ítem(s) · <?= View::escape($p['usuario']) ?>
+                            <?php if ($esLlevar && !empty($p['nombre_cliente'])): ?>
+                                · <?= View::escape($p['nombre_cliente']) ?>
+                            <?php endif; ?>
+                        </p>
+                    </div>
+                </div>
+                <div class="text-right shrink-0 ml-3 flex items-center gap-2">
+                    <div>
+                        <p class="font-black text-sm" style="color:var(--oro);">
+                            +$<?= number_format((float)$p['total'], 0, ',', '.') ?>
+                        </p>
+                        <p class="text-xs" style="color:#6b7280;"><?= date('H:i', strtotime($p['fecha'])) ?></p>
+                    </div>
+                    <span class="text-xs" style="color:#6b7280;">▾</span>
+                </div>
+            </button>
+            <!-- Detalle desplegable -->
+            <div id="<?= $uid ?>" class="hidden">
+                <?php if ($esLlevar && (!empty($p['nombre_cliente']) || !empty($p['direccion']))): ?>
+                <div class="px-4 py-2 text-xs flex flex-wrap gap-x-3"
+                     style="background-color:rgba(52,211,153,.07); color:#34d399; border-top:1px solid var(--rojo-mid);">
+                    <?php if (!empty($p['nombre_cliente'])): ?>👤 <?= View::escape($p['nombre_cliente']) ?><?php endif; ?>
+                    <?php if (!empty($p['direccion'])): ?>&nbsp;· 📍 <?= View::escape($p['direccion']) ?><?php endif; ?>
+                </div>
+                <?php endif; ?>
+                <?php foreach ($p['items'] as $item): ?>
+                <div class="flex justify-between items-center px-5 py-2 text-sm"
+                     style="border-top:1px solid var(--rojo-mid); color:#d1d5db;">
+                    <span><?= View::escape($item['concepto'] ?: '—') ?></span>
+                    <span class="font-bold" style="color:var(--oro);">
+                        +$<?= number_format((float)$item['valor'], 0, ',', '.') ?>
+                    </span>
+                </div>
                 <?php endforeach; ?>
-                </tbody>
-            </table>
+            </div>
+        </div>
+        <?php endif; ?>
+        <?php endforeach; ?>
         </div>
     </div>
     <?php else: ?>

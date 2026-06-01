@@ -40,7 +40,11 @@ final class Request
 
     public function json(): mixed
     {
-        $body = file_get_contents('php://input');
+        // M-03: limitar cuerpo a 1 MB para prevenir ataques de payload gigante
+        $body = file_get_contents('php://input', false, null, 0, 1_048_576);
+        if ($body === false || $body === '') {
+            return null;
+        }
         return json_decode($body, associative: true);
     }
 

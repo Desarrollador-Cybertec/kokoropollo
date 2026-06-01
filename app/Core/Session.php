@@ -17,10 +17,13 @@ final class Session
         session_set_cookie_params([
             'lifetime' => 0,
             'path'     => '/',
-            'secure'   => isset($_SERVER['HTTPS']),
+            'secure'   => true,
             'httponly' => true,
-            'samesite' => 'Lax',
+            'samesite' => 'Strict',
         ]);
+
+        // Expiración absoluta de 8 horas
+        ini_set('session.gc_maxlifetime', '28800');
 
         session_start();
         self::$started = true;

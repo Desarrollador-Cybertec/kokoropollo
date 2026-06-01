@@ -13,6 +13,7 @@ $cajaTotal            = isset($cajaTotal) ? (float) $cajaTotal : 0.0;
 $cajaMovimientos      = (isset($cajaMovimientos) && is_array($cajaMovimientos)) ? $cajaMovimientos : [];
 $cajaIngresos         = isset($cajaIngresos) ? (float) $cajaIngresos : 0.0;
 $cajaRetiros          = isset($cajaRetiros) ? (float) $cajaRetiros : 0.0;
+$esAdmin              = isset($esAdmin) ? (bool) $esAdmin : false;
 
 $pageTitle = 'Ventas — Kokoro Pollo';
 require dirname(__DIR__) . '/partials/head.php';
@@ -485,47 +486,22 @@ body { background: linear-gradient(135deg,#3b0a0a 0%,#4a0e0e 40%,#2b1a1a 100%); 
                 </button>
             </div>
             <div id="cajaMov" style="max-height:320px; overflow-y:auto;">
-                <table class="w-full text-sm">
-                    <tbody id="cajaTbody">
-                        <?php foreach ($cajaMovimientos as $m): ?>
-                            <?php
-                                $esVenta   = $m['origen'] === 'ventas';
-                                $esRetiro  = $m['tipo']   === 'retiro';
-                                $liquidado = $esVenta && ($m['liquidado'] ?? 0);
-                                $color     = $esRetiro ? '#fca5a5' : ($esVenta ? 'var(--oro)' : '#4ade80');
-                                $signo     = $esRetiro ? '-' : '+';
-                            ?>
-                            <tr class="border-b" style="border-color:var(--rojo-mid);">
-                                <td class="px-3 py-2 whitespace-nowrap" style="color:<?= $color ?>; font-weight:700;">
-                                    <?= $esVenta ? '🛒' : ($esRetiro ? '▼' : '▲') ?>
-                                    <?php if ($esVenta): ?>
-                                        <?= View::escape($m['concepto']) ?>
-                                        <?php if ($liquidado): ?><span style="color:#6b7280; font-size:.7rem;"> ✓</span><?php endif; ?>
-                                    <?php else: ?>
-                                        <?= View::escape($m['concepto'] ?: ($esRetiro ? 'Retiro' : 'Ingreso')) ?>
-                                    <?php endif; ?>
-                                </td>
-                                <td class="px-3 py-2 text-right whitespace-nowrap font-black" style="color:<?= $color ?>;">
-                                    <?= $signo ?>$<?= number_format((float)$m['valor'], 0, ',', '.') ?>
-                                </td>
-                                <td class="px-3 py-2 text-right text-xs" style="color:#9ca3af;">
-                                    <?= date('H:i', strtotime($m['fecha'])) ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                        <?php if (empty($cajaMovimientos)): ?>
-                            <tr><td colspan="3" class="px-4 py-6 text-center" style="color:#9ca3af;">Sin actividad hoy</td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
+                <div id="cajaMovList" class="text-sm"></div>
             </div>
         </div>
 
-        <!-- Link al historial completo -->
-        <div class="text-center pb-4">
+        <!-- Accesos rápidos de caja -->
+        <div class="text-center pb-4 flex flex-wrap gap-2 justify-center">
             <a href="/caja" class="font-bold text-sm px-5 py-2 rounded-xl btn-secondary inline-block">
                 📋 Gestión completa de caja →
             </a>
+            <?php if ($esAdmin): ?>
+            <a href="/caja#seccionCierre"
+               class="font-bold text-sm px-5 py-2 rounded-xl inline-block"
+               style="background-color:#7f1d1d; color:#fca5a5; border:1px solid #ef4444;">
+                🔒 Cierre de caja
+            </a>
+            <?php endif; ?>
         </div>
 
     </div><!-- /columna derecha -->
@@ -556,6 +532,7 @@ const PRODUCTOS     = <?= $productosJson ?>;
 const PRECIOS_POLLO = <?= $preciosPolloJson ?>;
 let totalDiaAcum    = <?= (float)$totalDia ?>;
 let pendienteAcum   = <?= (float)$pendienteLiquidacion ?>;
+const CAJA_MOV_INICIAL = <?= json_encode($cajaMovimientos, JSON_UNESCAPED_UNICODE) ?>;
 </script>
 <script src="/js/ventas.js"></script>
 

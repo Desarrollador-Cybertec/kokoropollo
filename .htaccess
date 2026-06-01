@@ -1,6 +1,12 @@
 Options -Indexes
 RewriteEngine On
 
+# C-08: Bloquear acceso directo a archivos y directorios sensibles
+RedirectMatch 403 (?i)^/\.env(\..*)?$
+RedirectMatch 403 (?i)^/\.git(/.*)?$
+RedirectMatch 403 (?i)^/(app|config|database|storage|backups|vendor)(/.*)?$
+RedirectMatch 403 (?i)^/composer\.(json|lock)$
+
 # Si existe archivo real en la raiz, servirlo tal cual (NO directorios: config/, app/, etc. deben llegar a index.php)
 RewriteCond %{REQUEST_FILENAME} -f
 RewriteRule ^ - [L]

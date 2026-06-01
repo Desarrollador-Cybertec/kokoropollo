@@ -85,7 +85,7 @@ final class CajaController
         $nuevoTotal = $tipo === 'ingreso' ? $total + $valor : $total - $valor;
         $caja->updateTotal($nuevoTotal);
         (new HistorialCaja())->create($tipo, $valor, $concepto, $usuario);
-        (new Auditoria())->registrar($usuario, 'caja', $tipo === 'ingreso' ? 'crear' : 'editar',
+        (new Auditoria())->registrar($usuario, 'caja', 'ajuste',
             ($tipo === 'ingreso' ? 'Ingreso' : 'Retiro') . ' $' . number_format($valor, 0, ',', '.') .
             ($concepto !== '' ? " — {$concepto}" : '')
         );
@@ -103,6 +103,11 @@ final class CajaController
     public function resumen(Request $request): void
     {
         AuthMiddleware::handle();
+        // C-03: Solo Admin puede consultar el resumen financiero de caja
+        $rol = Rol::tryFrom(Session::get('rol') ?? '');
+        if (!$rol?->atLeast(Rol::Administrador)) {
+            Response::json(['status' => 'error', 'mensaje' => 'Acceso denegado.'], 403);
+        }
         header('Content-Type: application/json; charset=utf-8');
 
         $hoy            = date('Y-m-d');
@@ -130,6 +135,12 @@ final class CajaController
     public function ajuste(Request $request): void
     {
         AuthMiddleware::handle();
+        // C-03: Solo Administrador o superior puede hacer ajustes de caja
+        $rolActual = Rol::tryFrom(Session::get('rol') ?? '');
+        if (!$rolActual?->atLeast(Rol::Administrador)) {
+            Response::json(['status' => 'error', 'mensaje' => 'Acceso denegado.'], 403);
+        }
+
         header('Content-Type: application/json; charset=utf-8');
 
         $csrfToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
@@ -147,20 +158,18 @@ final class CajaController
             Response::json(['status' => 'error', 'mensaje' => 'Datos inválidos.'], code: 422);
         }
 
-        $caja  = new Caja();
-        $total = $caja->getTotal();
-
         $tipo = match($accion) {
             'anadir'  => 'ingreso',
             'retirar' => 'retiro',
         };
 
-        if ($tipo === 'retiro' && $valor > $total) {
-            Response::json(['status' => 'error', 'mensaje' => 'No puede retirar más de lo que hay en caja.'], code: 422);
+        try {
+            // C-04: ajustar() es atómico con FOR UPDATE — previene race conditions
+            $nuevoTotal = (new Caja())->ajustar($tipo, $valor);
+        } catch (\RuntimeException $e) {
+            Response::json(['status' => 'error', 'mensaje' => $e->getMessage()], code: 422);
         }
 
-        $nuevoTotal = $tipo === 'ingreso' ? $total + $valor : $total - $valor;
-        $caja->updateTotal($nuevoTotal);
         (new HistorialCaja())->create($tipo, $valor, $concepto ?: ($tipo === 'ingreso' ? 'Ingreso manual' : 'Retiro manual'), $usuario);
 
         Logger::getInstance()->info("Ajuste de caja: {$tipo}", [

@@ -62,8 +62,10 @@ final class CreditoEmpleado
         $pdo->beginTransaction();
 
         try {
-            // Verificar saldo suficiente en caja
-            $totalCaja = (float) $pdo->query('SELECT total FROM caja WHERE id = 1')->fetchColumn();
+            // C-05: FOR UPDATE para evitar race condition al verificar saldo
+            $stmt = $pdo->prepare('SELECT total FROM caja WHERE id = 1 FOR UPDATE');
+            $stmt->execute();
+            $totalCaja = (float) $stmt->fetchColumn();
             if ($valor > $totalCaja) {
                 $pdo->rollBack();
                 throw new \RuntimeException('Saldo en caja insuficiente para este crédito.');

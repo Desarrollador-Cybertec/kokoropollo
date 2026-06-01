@@ -61,23 +61,30 @@ final class HistorialCaja
                     hc.fecha,
                     'caja'   AS origen,
                     NULL     AS orden_id,
-                    NULL     AS liquidado
+                    NULL     AS liquidado,
+                    NULL     AS tipo_pedido,
+                    NULL     AS nombre_cliente,
+                    NULL     AS direccion
              FROM historial_caja hc
              WHERE DATE(hc.fecha) = ?
+                             AND NOT (hc.tipo = 'ingreso' AND hc.concepto LIKE 'Liquidaci%')
 
              UNION ALL
 
              SELECT v.id,
                     'venta'      AS tipo,
                     v.total      AS valor,
-                    i.articulo   AS concepto,
+                    COALESCE(i.articulo, v.item_descripcion) AS concepto,
                     v.usuario,
                     v.fecha,
                     'ventas'     AS origen,
                     v.orden_id,
-                    v.liquidado
+                    v.liquidado,
+                    v.tipo_pedido,
+                    v.nombre_cliente,
+                    v.direccion
              FROM ventas v
-             JOIN inventario i ON i.id = v.inventario_id
+             LEFT JOIN inventario i ON i.id = v.inventario_id
              WHERE DATE(v.fecha) = ?
 
              ORDER BY fecha DESC"

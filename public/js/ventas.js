@@ -338,9 +338,11 @@ async function registrarPedido() {
     btn.textContent = '⏳ Registrando...';
     alerta.classList.add('hidden');
 
-    const errores    = [];
+    const errores     = [];
     const registrados = [];
-    let totalPedido  = 0;
+    let totalPedido   = 0;
+    let tipoPedidoRegistrado = tipoPedidoActual;
+    let datosClienteRegistrados = getDatosCliente();
 
     for (let idx = 0; idx < carrito.length; idx++) {
         const item    = carrito[idx];
@@ -364,6 +366,10 @@ async function registrarPedido() {
             if (data.status !== 'ok') {
                 errores.push(`${item.nombre}: ${data.mensaje ?? 'error'}`);
             } else {
+                if (data.tipo_pedido === 'local' || data.tipo_pedido === 'llevar') {
+                    tipoPedidoRegistrado = data.tipo_pedido;
+                    datosClienteRegistrados = tipoPedidoRegistrado === 'llevar' ? getDatosCliente() : {};
+                }
                 registrados.push(item);
                 totalPedido += item.subtotal;
                 if (!esVirtual) actualizarStockCard(item.id, item.cantInv);
@@ -391,7 +397,7 @@ async function registrarPedido() {
     if (registrados.length > 0) {
         totalDiaAcum += totalPedido;
         document.getElementById('totalDiaSpan').textContent = fmt(totalDiaAcum);
-        agregarPedidoAlHistorial(ordenId, registrados, totalPedido);
+        agregarPedidoAlHistorial(ordenId, registrados, totalPedido, tipoPedidoRegistrado, datosClienteRegistrados);
 
         pendienteAcum += totalPedido;
         actualizarPanelLiquidacion();
@@ -421,8 +427,8 @@ function actualizarStockCard(prodId, cantDeducida) {
 }
 
 /* ── Historial visual del día ── */
-function agregarPedidoAlHistorial(ordenId, items, total) {
-    pedidosHoy.unshift({ ordenId, items: [...items], total, tipo: tipoPedidoActual, ...getDatosCliente() });
+function agregarPedidoAlHistorial(ordenId, items, total, tipoPedido = tipoPedidoActual, datosCliente = getDatosCliente()) {
+    pedidosHoy.unshift({ ordenId, items: [...items], total, tipo: tipoPedido, ...datosCliente });
     renderHistorial();
     document.getElementById('seccionHistorial').classList.remove('hidden');
 }
@@ -438,6 +444,14 @@ function renderHistorial() {
                 <span>$${fmt(pedido.total)} ▾</span>
             </button>
             <div id="pedido-${idx}" class="hidden">
+                ${pedido.tipo === 'llevar' ? `
+                <div class="px-4 py-2 text-xs font-semibold flex flex-wrap gap-x-4 gap-y-1"
+                     style="border-top:1px solid var(--rojo-bord); background-color:rgba(52,211,153,.07); color:#34d399;">
+                    🛵 <strong>Para llevar</strong>
+                    ${pedido.nombre_cliente ? `· 👤 ${pedido.nombre_cliente}` : ''}
+                    ${pedido.telefono       ? `· 📞 ${pedido.telefono}` : ''}
+                    ${pedido.direccion      ? `· 📍 ${pedido.direccion}` : ''}
+                </div>` : ''}
                 ${pedido.items.map(i => `
                     <div class="flex justify-between items-center px-4 py-2 text-sm"
                          style="border-top:1px solid var(--rojo-bord); color:#e5e7eb;">
@@ -462,7 +476,12 @@ function generarFactura() {
     let html = `<p style="font-size:1.2rem; font-weight:900; color:var(--oro); margin-bottom:.75rem;">
                     Kokoro Pollo — Ventas del día</p>`;
     pedidosHoy.forEach(p => {
-        html += `<p style="font-weight:700; color:#d4af37; margin:.5rem 0 .25rem;">Pedido #${p.ordenId}</p>`;
+        const tipoLabel = p.tipo === 'llevar' ? ' 🛵 Para llevar' : ' 🏠 Local';
+        html += `<p style="font-weight:700; color:#d4af37; margin:.5rem 0 .1rem;">Pedido #${p.ordenId}${tipoLabel}</p>`;
+        if (p.tipo === 'llevar' && (p.nombre_cliente || p.telefono || p.direccion)) {
+            const info = [p.nombre_cliente, p.telefono, p.direccion].filter(Boolean).join(' · ');
+            html += `<p style="font-size:.8rem; color:#34d399; margin:0 0 .25rem;">${info}</p>`;
+        }
         p.items.forEach(i => {
             html += `<div style="display:flex; justify-content:space-between; padding:.2rem 0; border-bottom:1px solid #5a1a1a;">
                          <span>${i.nombre}${i.corte !== 'Unidad' ? ' (' + i.corte + ')' : ''} × ${i.cantForm}</span>
@@ -552,6 +571,122 @@ function mostrarAlerta(el, texto, tipo) {
     el.classList.remove('hidden');
 }
 
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function horaCorta(fechaStr) {
+    const d = new Date(String(fechaStr).replace(' ', 'T'));
+    return Number.isNaN(d.getTime())
+        ? ''
+        : d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+}
+
+function renderCajaMovimientos(movimientos) {
+    const listEl = document.getElementById('cajaMovList');
+    if (!listEl) return;
+
+    if (!Array.isArray(movimientos) || movimientos.length === 0) {
+        listEl.innerHTML = '<div style="padding:1.5rem; text-align:center; color:#9ca3af;">Sin actividad hoy</div>';
+        return;
+    }
+
+    const eventos = [];
+    const pedidos = new Map();
+
+    movimientos.forEach(m => {
+        const esVenta = m.origen === 'ventas' && m.orden_id;
+        if (!esVenta) {
+            eventos.push({ tipo: 'accion', fecha: m.fecha, data: m });
+            return;
+        }
+
+        const key = String(m.orden_id);
+        if (!pedidos.has(key)) {
+            pedidos.set(key, {
+                orden_id: key,
+                fecha: m.fecha,
+                total: 0,
+                usuario: m.usuario || '',
+                tipo_pedido: m.tipo_pedido || 'local',
+                nombre_cliente: m.nombre_cliente || '',
+                direccion: m.direccion || '',
+                liquidado: Number(m.liquidado || 0) > 0,
+                items: [],
+            });
+        }
+
+        const p = pedidos.get(key);
+        p.total += Number(m.valor || 0);
+        p.items.push(m);
+        if (String(m.fecha) > String(p.fecha)) p.fecha = m.fecha;
+        if (Number(m.liquidado || 0) > 0) p.liquidado = true;
+    });
+
+    pedidos.forEach(p => eventos.push({ tipo: 'pedido', fecha: p.fecha, data: p }));
+    eventos.sort((a, b) => (String(a.fecha) < String(b.fecha) ? 1 : -1));
+
+    listEl.innerHTML = eventos.map(evt => {
+        if (evt.tipo === 'accion') {
+            const m = evt.data;
+            const esRetiro = m.tipo === 'retiro';
+            const color = esRetiro ? '#fca5a5' : '#4ade80';
+            const icono = esRetiro ? '▼' : '▲';
+            const signo = esRetiro ? '-' : '+';
+            const concepto = escapeHtml(m.concepto || (esRetiro ? 'Retiro' : 'Ingreso'));
+
+            return `<div class="flex items-center justify-between px-3 py-2 border-b" style="border-color:var(--rojo-mid);">
+                <div class="min-w-0">
+                    <p class="font-bold truncate" style="color:${color};">${icono} ${concepto}</p>
+                    <p class="text-xs" style="color:#6b7280;">${escapeHtml(m.usuario || '')}</p>
+                </div>
+                <div class="text-right ml-3 shrink-0">
+                    <p class="font-black" style="color:${color};">${signo}$${fmt(m.valor || 0)}</p>
+                    <p class="text-xs" style="color:#9ca3af;">${horaCorta(m.fecha)}</p>
+                </div>
+            </div>`;
+        }
+
+        const p = evt.data;
+        const esLlevar = p.tipo_pedido === 'llevar';
+        const infoCliente = esLlevar && (p.nombre_cliente || p.direccion)
+            ? `<div class="px-4 py-2 text-xs" style="color:#34d399; background-color:rgba(52,211,153,.07); border-top:1px solid var(--rojo-mid);">
+                    ${p.nombre_cliente ? `👤 ${escapeHtml(p.nombre_cliente)}` : ''}
+                    ${p.direccion ? `${p.nombre_cliente ? ' · ' : ''}📍 ${escapeHtml(p.direccion)}` : ''}
+               </div>`
+            : '';
+
+        const detalles = p.items.map(i => `<div class="flex justify-between items-center px-4 py-2 text-xs" style="border-top:1px solid var(--rojo-mid); color:#d1d5db;">
+                <span class="truncate mr-2">${escapeHtml(i.concepto || '—')}</span>
+                <span class="font-bold" style="color:var(--oro);">+$${fmt(i.valor || 0)}</span>
+            </div>`).join('');
+
+        return `<details class="border-b" style="border-color:var(--rojo-mid);">
+            <summary class="px-3 py-2 cursor-pointer list-none flex items-center justify-between tr-dark">
+                <div class="min-w-0">
+                    <p class="font-black truncate" style="color:var(--oro);">
+                        ${esLlevar ? '🛵' : '🏠'} Pedido #${escapeHtml(p.orden_id)}
+                        ${esLlevar ? '<span style="color:#34d399; font-size:.75rem;"> · Para llevar</span>' : ''}
+                        ${p.liquidado ? '<span style="color:#6b7280; font-size:.75rem;"> ✓</span>' : ''}
+                    </p>
+                    <p class="text-xs" style="color:#6b7280;">${p.items.length} ítem(s) · ${escapeHtml(p.usuario || '')}</p>
+                </div>
+                <div class="text-right ml-3 shrink-0">
+                    <p class="font-black" style="color:var(--oro);">+$${fmt(p.total || 0)}</p>
+                    <p class="text-xs" style="color:#9ca3af;">${horaCorta(p.fecha)}</p>
+                </div>
+            </summary>
+            ${infoCliente}
+            ${detalles}
+        </details>`;
+    }).join('');
+}
+
 async function refrescarCaja() {
     try {
         const res  = await fetch('/caja/resumen', { headers: { 'X-CSRF-Token': CSRF } });
@@ -562,8 +697,6 @@ async function refrescarCaja() {
         const totalEl    = document.getElementById('cajaTotalDisplay');
         const ingrEl     = document.getElementById('cajaIngresosDisplay');
         const retEl      = document.getElementById('cajaRetirosDisplay');
-        const tbodyEl    = document.getElementById('cajaTbody');
-
         if (totalEl) totalEl.textContent = fmtPeso(data.total);
         if (ingrEl)  ingrEl.textContent  = `+$${fmtPeso(data.ingresosHoy)}`;
         if (retEl)   retEl.textContent   = `-$${fmtPeso(data.retirosHoy)}`;
@@ -574,26 +707,7 @@ async function refrescarCaja() {
             actualizarPanelLiquidacion();
         }
 
-        if (tbodyEl && Array.isArray(data.movimientos)) {
-            tbodyEl.innerHTML = data.movimientos.length === 0
-                ? '<tr><td colspan="3" style="padding:1.5rem; text-align:center; color:#9ca3af;">Sin actividad hoy</td></tr>'
-                : data.movimientos.map(m => {
-                    const esVenta  = m.origen === 'ventas';
-                    const esRetiro = m.tipo === 'retiro';
-                    const color    = esRetiro ? '#fca5a5' : (esVenta ? 'var(--oro)' : '#4ade80');
-                    const signo    = esRetiro ? '-' : '+';
-                    const icono    = esVenta ? '🛒' : (esRetiro ? '▼' : '▲');
-                    const liq      = esVenta && m.liquidado ? ' <span style="color:#6b7280;font-size:.7rem;">✓</span>' : '';
-                    const hora     = new Date(m.fecha.replace(' ', 'T')).toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
-                    const concepto = (m.concepto || '').replace(/</g, '&lt;');
-                    const ordenId  = esVenta && m.orden_id ? ` <span style="color:#6b7280;font-size:.7rem;">#${m.orden_id}</span>` : '';
-                    return `<tr class="border-b" style="border-color:var(--rojo-mid);">
-                        <td class="px-3 py-2" style="color:${color}; font-weight:700;">${icono} ${concepto}${liq}${ordenId}</td>
-                        <td class="px-3 py-2 text-right whitespace-nowrap font-black" style="color:${color};">${signo}$${fmtPeso(m.valor)}</td>
-                        <td class="px-3 py-2 text-right text-xs" style="color:#9ca3af;">${hora}</td>
-                    </tr>`;
-                }).join('');
-        }
+        renderCajaMovimientos(data.movimientos);
     } catch (e) {
         console.error('Error al refrescar caja:', e);
     }
@@ -632,3 +746,9 @@ async function submitAjusteCaja(event, accion) {
     }
     setTimeout(() => alerta.classList.add('hidden'), 4000);
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof CAJA_MOV_INICIAL !== 'undefined') {
+        renderCajaMovimientos(CAJA_MOV_INICIAL);
+    }
+});
