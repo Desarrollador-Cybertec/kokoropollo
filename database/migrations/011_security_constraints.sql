@@ -4,18 +4,18 @@
 -- ============================================================
 
 -- A-06: Proteger saldo de caja contra valores negativos
--- MariaDB soporta CHECK constraints desde 10.2.1
+-- MariaDB soporta CHECK constraints con IF NOT EXISTS desde 10.5.1
 ALTER TABLE `caja`
-    ADD CONSTRAINT `chk_caja_total_positivo`
+    ADD CONSTRAINT IF NOT EXISTS `chk_caja_total_positivo`
         CHECK (`total` >= 0.00);
 
 -- A-05: Prevenir doble apertura de caja por día
 ALTER TABLE `caja_aperturas`
-    ADD UNIQUE KEY `uq_apertura_fecha` (`fecha`);
+    ADD UNIQUE KEY IF NOT EXISTS `uq_apertura_fecha` (`fecha`);
 
 -- A-05: Prevenir doble cierre de caja por día
 ALTER TABLE `caja_cierres`
-    ADD UNIQUE KEY `uq_cierre_fecha` (`fecha`);
+    ADD UNIQUE KEY IF NOT EXISTS `uq_cierre_fecha` (`fecha`);
 
 -- A-02: Extender ENUM de auditoria.accion para cubrir eventos de auth y financieros
 ALTER TABLE `auditoria`

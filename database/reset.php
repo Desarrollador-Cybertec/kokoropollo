@@ -234,40 +234,36 @@ try {
     echo 'Ejecutando esquema principal...' . PHP_EOL;
     executeSqlFile($pdo, ROOT_PATH . '/database/schema.sql');
 
-    echo 'Ejecutando esquemas adicionales...' . PHP_EOL;
-    $additionalSchemas = [
-        ['file' => 'add_configuracion.sql', 'shouldRun' => static fn(PDO $db): bool => true],
-        ['file' => 'add_categoria.sql', 'shouldRun' => static fn(PDO $db): bool => !columnExists($db, 'inventario', 'categoria')],
-        ['file' => 'add_orden_id.sql', 'shouldRun' => static fn(PDO $db): bool => !columnExists($db, 'ventas', 'orden_id')],
-        ['file' => 'add_pollo_crudo.sql', 'shouldRun' => static fn(PDO $db): bool => true],
-        ['file' => 'update_categorias_v2.sql', 'shouldRun' => static fn(PDO $db): bool => true],
+    $migrations = [
+        '001_caja_aperturas.sql',
+        '002_caja_cierres.sql',
+        '003_creditos_empleados.sql',
+        '004_retiros_seguridad.sql',
+        '005_ventas_tipo_pedido.sql',
+        '006_rol_jefe.sql',
+        '008_auditoria.sql',
+        '009_inventario_bebidas_porciones.sql',
+        '010_ventas_virtual_items.sql',
+        '011_security_constraints.sql',
     ];
 
-    foreach ($additionalSchemas as $migration) {
-        $fileName = $migration['file'];
-        $shouldRun = $migration['shouldRun'];
-
-        if (!$shouldRun($pdo)) {
-            echo "- {$fileName}: omitido (ya aplicado)." . PHP_EOL;
-            continue;
-        }
-
-        echo "- {$fileName}: ejecutando..." . PHP_EOL;
-        executeSqlFile($pdo, ROOT_PATH . '/database/' . $fileName);
+    echo 'Ejecutando migraciones...' . PHP_EOL;
+    foreach ($migrations as $file) {
+        echo "- {$file}..." . PHP_EOL;
+        executeSqlFile($pdo, ROOT_PATH . '/database/migrations/' . $file);
     }
 
-    echo 'Ejecutando seeder de usuario admin...' . PHP_EOL;
+    echo 'Sembrando datos iniciales...' . PHP_EOL;
     $stmt = $pdo->prepare(
-        'INSERT IGNORE INTO usuarios (nombre, usuario, clave, rol) VALUES (?, ?, ?, ?)'
+        "INSERT IGNORE INTO usuarios (nombre, usuario, clave, rol) VALUES (?, ?, ?, 'Jefe')"
     );
     $stmt->execute([
         'Administrador',
         'admin',
-        password_hash('admin123', PASSWORD_DEFAULT),
-        'Administrador',
+        password_hash('admin123', PASSWORD_BCRYPT, ['cost' => 12]),
     ]);
 
-    echo 'Proceso completado: DB recreada, esquema aplicado y usuario seed ejecutado.' . PHP_EOL;
+    echo 'Proceso completado: DB recreada con esquema completo y datos semilla.' . PHP_EOL;
     echo 'Credenciales iniciales: usuario=admin / clave=admin123' . PHP_EOL;
     exit(0);
 } catch (PDOException $e) {
