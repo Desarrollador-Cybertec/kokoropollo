@@ -46,6 +46,7 @@ final class AuthController
         }
 
         Session::regenerate();
+        Session::set('usuario_id', (int) $row['id']);
         Session::set('usuario', $row['usuario']);
         Session::set('rol', $row['rol']);
 

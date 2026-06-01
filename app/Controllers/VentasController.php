@@ -12,7 +12,7 @@ use App\Models\{Caja, Configuracion, HistorialCaja, Inventario, Venta};
 final class VentasController
 {
     private const CATEGORIAS_CONFIG = [
-        'Pollo Crudo'     => ['emoji' => '🐔', 'label' => 'Pollo Crudo'],
+        'Pollo Crudo'     => ['emoji' => '🐔', 'label' => 'Pollo'],
         'Papas'           => ['emoji' => '🥔', 'label' => 'Papas'],
         'Acompañamientos' => ['emoji' => '🍌', 'label' => 'Acompañ.'],
         'Salsas'          => ['emoji' => '🫙', 'label' => 'Salsas'],
@@ -26,10 +26,7 @@ final class VentasController
 
         $hoy = date('Y-m-d');
 
-        $productos = array_values(array_filter(
-            (new Inventario())->forSelect(),
-            static fn(array $p): bool => !in_array((string) ($p['categoria'] ?? ''), ['Asado', 'Broaster'], true)
-        ));
+        $productos = (new Inventario())->forSelect();
         $productosJson    = json_encode(array_values($productos), JSON_UNESCAPED_UNICODE);
         $venta            = new Venta();
         $totalDia         = $venta->sumToday();
@@ -40,19 +37,11 @@ final class VentasController
 
         $cfg = (new Configuracion())->getMany([
             'precio_asado_cuarto', 'precio_asado_medio', 'precio_asado_entero',
-            'precio_broaster_cuarto', 'precio_broaster_medio', 'precio_broaster_entero',
         ]);
         $preciosPolloJson = json_encode([
-            'Asado'    => [
-                'cuarto' => (float) $cfg['precio_asado_cuarto'],
-                'medio'  => (float) $cfg['precio_asado_medio'],
-                'entero' => (float) $cfg['precio_asado_entero'],
-            ],
-            'Broaster' => [
-                'cuarto' => (float) $cfg['precio_broaster_cuarto'],
-                'medio'  => (float) $cfg['precio_broaster_medio'],
-                'entero' => (float) $cfg['precio_broaster_entero'],
-            ],
+            'cuarto' => (float) $cfg['precio_asado_cuarto'],
+            'medio'  => (float) $cfg['precio_asado_medio'],
+            'entero' => (float) $cfg['precio_asado_entero'],
         ]);
 
         // Datos de caja para el panel derecho
@@ -83,12 +72,26 @@ final class VentasController
             Response::json(['status' => 'error', 'mensaje' => 'Token de seguridad inválido.'], code: 403);
         }
 
+        $json = $request->json() ?? [];
+
         [
             'ordenId'        => $ordenId,
             'inventarioId'   => $inventarioId,
             'cantidad'       => $cantidad,
             'precioUnitario' => $precioUnitario,
-        ] = $this->validateVentaInput($request->json() ?? []);
+        ] = $this->validateVentaInput($json);
+
+        $tipoPedido    = in_array($json['tipo_pedido'] ?? 'local', ['local', 'llevar'], true)
+                         ? $json['tipo_pedido'] : 'local';
+        $nombreCliente = isset($json['nombre_cliente'])
+                         ? substr(trim((string) $json['nombre_cliente']), 0, 100) ?: null
+                         : null;
+        $telefono      = isset($json['telefono'])
+                         ? substr(trim((string) $json['telefono']), 0, 20) ?: null
+                         : null;
+        $direccion     = isset($json['direccion'])
+                         ? substr(trim((string) $json['direccion']), 0, 255) ?: null
+                         : null;
 
         $total   = $precioUnitario * $cantidad;
         $usuario = Session::get('usuario', '');
@@ -101,6 +104,10 @@ final class VentasController
                 precioUnitario: $precioUnitario,
                 total:          $total,
                 usuario:        $usuario,
+                tipoPedido:     $tipoPedido,
+                nombreCliente:  $nombreCliente,
+                telefono:       $telefono,
+                direccion:      $direccion,
             );
 
             Logger::getInstance()->info('Venta registrada', [

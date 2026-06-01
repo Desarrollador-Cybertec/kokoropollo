@@ -2,10 +2,19 @@
 declare(strict_types=1);
 use App\Core\View;
 
+$desde = isset($desde) ? (string) $desde : '';
+$hasta = isset($hasta) ? (string) $hasta : '';
+$registros = (isset($registros) && is_array($registros)) ? $registros : [];
+$totalIngresos = isset($totalIngresos) ? (float) $totalIngresos : 0.0;
+$totalRetiros = isset($totalRetiros) ? (float) $totalRetiros : 0.0;
+$total = isset($total) ? (int) $total : 0;
+$pagina = isset($pagina) ? (int) $pagina : 1;
+$totalPaginas = isset($totalPaginas) ? (int) $totalPaginas : 1;
+
 $pageTitle = 'Historial de Caja — Kokoro Pollo';
 require dirname(__DIR__) . '/partials/head.php';
 ?>
-<body class="bg-app min-h-screen py-8 pb-28">
+<body class="min-h-screen py-8 pb-28" style="background:linear-gradient(135deg,#3b0a0a 0%,#4a0e0e 40%,#2b1a1a 100%);">
 
 <?php require dirname(__DIR__) . '/partials/toasts.php' ?>
 

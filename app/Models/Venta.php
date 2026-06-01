@@ -9,12 +9,16 @@ use App\Core\Database;
 final class Venta
 {
     public function store(
-        string $ordenId,
-        int    $inventarioId,
-        int    $cantidad,
-        float  $precioUnitario,
-        float  $total,
-        string $usuario,
+        string  $ordenId,
+        int     $inventarioId,
+        int     $cantidad,
+        float   $precioUnitario,
+        float   $total,
+        string  $usuario,
+        string  $tipoPedido    = 'local',
+        ?string $nombreCliente = null,
+        ?string $telefono      = null,
+        ?string $direccion     = null,
     ): int {
         $pdo = Database::getInstance();
         $pdo->beginTransaction();
@@ -33,10 +37,15 @@ final class Venta
                 ->execute([$cantidad, $inventarioId]);
 
             $stmt = $pdo->prepare(
-                'INSERT INTO ventas (orden_id, inventario_id, cantidad, precio_unitario, total, usuario, fecha)
-                 VALUES (?, ?, ?, ?, ?, ?, NOW())'
+                'INSERT INTO ventas
+                 (orden_id, inventario_id, cantidad, precio_unitario, total, usuario,
+                  tipo_pedido, nombre_cliente, telefono, direccion, fecha)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())'
             );
-            $stmt->execute([$ordenId, $inventarioId, $cantidad, $precioUnitario, $total, $usuario]);
+            $stmt->execute([
+                $ordenId, $inventarioId, $cantidad, $precioUnitario, $total, $usuario,
+                $tipoPedido, $nombreCliente, $telefono, $direccion,
+            ]);
             $id = (int) $pdo->lastInsertId();
 
             $pdo->commit();
@@ -79,6 +88,19 @@ final class Venta
         Database::getInstance()->prepare(
             'UPDATE ventas SET liquidado = 1 WHERE liquidado = 0'
         )->execute();
+    }
+
+    /** Suma total de cuartos de Pollo Crudo vendidos desde el inicio del sistema */
+    public function sumCuartosPolloVendidos(): int
+    {
+        $stmt = Database::getInstance()->prepare(
+            "SELECT COALESCE(SUM(v.cantidad), 0)
+             FROM ventas v
+             JOIN inventario i ON i.id = v.inventario_id
+             WHERE i.categoria = 'Pollo Crudo'"
+        );
+        $stmt->execute();
+        return (int) $stmt->fetchColumn();
     }
 
     public function allToday(): array

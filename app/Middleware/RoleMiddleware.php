@@ -16,7 +16,7 @@ final class RoleMiddleware
         $sessionRole = Session::get('rol');
         $actual      = $sessionRole !== null ? Rol::tryFrom($sessionRole) : null;
 
-        if ($actual !== $required) {
+        if ($actual === null || !$actual->atLeast($required)) {
             $redirect = $actual?->dashboard() ?? '/';
             Response::redirect($redirect);
         }

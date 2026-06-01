@@ -37,7 +37,7 @@ $categorias = [
 $pageTitle = 'Inventario — Kokoro Pollo';
 require dirname(__DIR__) . '/partials/head.php';
 ?>
-<body class="bg-app min-h-screen py-8 pb-28">
+<body class="min-h-screen py-8 pb-28" style="background:linear-gradient(135deg,#3b0a0a 0%,#4a0e0e 40%,#2b1a1a 100%);">
 
 <?php require dirname(__DIR__) . '/partials/toasts.php' ?>
 <?php require dirname(__DIR__) . '/partials/confirm-modal.php' ?>

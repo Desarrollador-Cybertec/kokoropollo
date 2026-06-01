@@ -13,19 +13,22 @@ final class UsuariosController
 {
     public function index(Request $request): void
     {
-        RoleMiddleware::require(Rol::Administrador);
-        View::render('usuarios/index');
+        RoleMiddleware::require(Rol::Jefe);
+        $rol = Rol::tryFrom(Session::get('rol') ?? '');
+        View::render('usuarios/index', [
+            'dashboardUrl' => $rol?->dashboard() ?? '/dashboard',
+        ]);
     }
 
     public function list(Request $request): void
     {
-        RoleMiddleware::require(Rol::Administrador);
+        RoleMiddleware::require(Rol::Jefe);
         Response::json((new Usuario())->all());
     }
 
     public function create(Request $request): void
     {
-        RoleMiddleware::require(Rol::Administrador);
+        RoleMiddleware::require(Rol::Jefe);
 
         $csrfToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
         if (!Csrf::validateToken($csrfToken)) {
@@ -57,7 +60,7 @@ final class UsuariosController
 
     public function update(Request $request): void
     {
-        RoleMiddleware::require(Rol::Administrador);
+        RoleMiddleware::require(Rol::Jefe);
 
         $csrfToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
         if (!Csrf::validateToken($csrfToken)) {
@@ -90,7 +93,7 @@ final class UsuariosController
 
     public function destroy(Request $request): void
     {
-        RoleMiddleware::require(Rol::Administrador);
+        RoleMiddleware::require(Rol::Jefe);
 
         $csrfToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
         if (!Csrf::validateToken($csrfToken)) {

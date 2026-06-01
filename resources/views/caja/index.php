@@ -12,11 +12,12 @@ $priMes = isset($priMes) ? (string) $priMes : date('Y-m-01');
 $dashboardUrl = isset($dashboardUrl) ? (string) $dashboardUrl : '/dashboard';
 $movimientosHoy      = (isset($movimientosHoy) && is_array($movimientosHoy)) ? $movimientosHoy : [];
 $ventasPendientesHoy = isset($ventasPendientesHoy) ? (float) $ventasPendientesHoy : 0.0;
+$aperturaHoy = isset($aperturaHoy) && is_array($aperturaHoy) ? $aperturaHoy : null;
 
 $pageTitle = 'Caja — Kokoro Pollo';
 require dirname(__DIR__) . '/partials/head.php';
 ?>
-<body class="bg-app min-h-screen py-8 pb-28">
+<body class="min-h-screen py-8 pb-28" style="background:linear-gradient(135deg,#3b0a0a 0%,#4a0e0e 40%,#2b1a1a 100%);">
 
 <?php require dirname(__DIR__) . '/partials/toasts.php' ?>
 
@@ -48,6 +49,37 @@ require dirname(__DIR__) . '/partials/head.php';
         </div>
     </div>
 
+    <!-- Banner apertura de caja (solo admin) -->
+    <?php if ($esAdmin ?? false): ?>
+    <?php if ($aperturaHoy): ?>
+    <div class="rounded-xl px-5 py-3 mb-3 flex items-center justify-between gap-4 flex-wrap"
+         style="background-color:#132a1e; border:1px solid #1d6b3a;">
+        <div>
+            <span class="text-xs font-bold uppercase tracking-wider" style="color:#4ade80;">🔓 Caja abierta</span>
+            <span class="ml-2 text-sm font-semibold" style="color:#9ca3af;">
+                Base: <strong style="color:#4ade80;">$<?= number_format((float)$aperturaHoy['base_inicial'], 0, ',', '.') ?></strong>
+                · <?= View::escape($aperturaHoy['nombre_usuario']) ?>
+                · <?= date('H:i', strtotime($aperturaHoy['created_at'])) ?>
+            </span>
+        </div>
+        <a href="/caja/apertura" class="text-xs font-bold px-3 py-1 rounded-lg btn-secondary">
+            Ver detalle
+        </a>
+    </div>
+    <?php else: ?>
+    <div class="rounded-xl px-5 py-3 mb-3 flex items-center justify-between gap-4 flex-wrap"
+         style="background-color:#3a1a08; border:2px solid #d97706;">
+        <div>
+            <span class="text-xs font-bold uppercase tracking-wider" style="color:#fbbf24;">⚠️ Caja sin apertura</span>
+            <span class="ml-2 text-sm" style="color:#9ca3af;">No se ha registrado la apertura del día</span>
+        </div>
+        <a href="/caja/apertura" class="font-bold text-sm px-4 py-2 rounded-xl btn-primary">
+            Abrir Caja →
+        </a>
+    </div>
+    <?php endif; ?>
+    <?php endif; ?>
+
     <!-- Ventas pendientes de liquidar -->
     <?php if ($ventasPendientesHoy > 0): ?>
     <div class="rounded-xl px-5 py-4 mb-6 flex items-center justify-between gap-4 flex-wrap"
@@ -66,6 +98,30 @@ require dirname(__DIR__) . '/partials/head.php';
     </div>
     <?php else: ?>
     <div class="mb-6"></div>
+    <?php endif; ?>
+
+    <!-- ALSÉS — Retiro de Seguridad (solo admin) -->
+    <?php if ($esAdmin ?? false): ?>
+    <div class="rounded-2xl shadow-xl p-5 mb-4" style="background-color:var(--rojo-card); border:1px solid #78350f;">
+        <h3 class="font-black text-base uppercase tracking-wider mb-3" style="color:#fbbf24;">
+            🔒 ALSÉ — Retiro de Seguridad
+        </h3>
+        <p class="text-xs mb-3" style="color:#9ca3af;">Traslado de efectivo por seguridad. No es un gasto operativo.</p>
+        <form id="formAlse" class="flex flex-wrap gap-3">
+            <input type="number" step="1" min="1" placeholder="Valor" name="valor"
+                   class="input-dark px-4 py-3 rounded-xl text-lg font-bold flex-1 min-w-[120px]">
+            <input type="text" placeholder="Motivo" name="motivo" maxlength="255"
+                   class="input-dark px-4 py-3 rounded-xl text-lg flex-[2] min-w-[180px]">
+            <button type="button" onclick="registrarAlse()"
+                    class="font-black text-base px-6 py-3 rounded-xl whitespace-nowrap"
+                    style="background-color:#78350f; color:#fbbf24; transition:background-color .15s;"
+                    onmouseover="this.style.backgroundColor='#92400e'"
+                    onmouseout="this.style.backgroundColor='#78350f'">
+                🔒 ALSÉ
+            </button>
+        </form>
+        <div id="alertaAlse" class="hidden mt-2 text-sm font-bold px-4 py-2 rounded-xl"></div>
+    </div>
     <?php endif; ?>
 
     <!-- Filtros rápidos -->
@@ -209,6 +265,48 @@ require dirname(__DIR__) . '/partials/head.php';
     <?php endif; ?>
 
 </div>
+
+<script>
+const CSRF_CAJA = document.querySelector('meta[name="csrf-token"]').content;
+
+async function registrarAlse() {
+    const form   = document.getElementById('formAlse');
+    const alerta = document.getElementById('alertaAlse');
+    const valor  = parseFloat(form.querySelector('[name="valor"]').value);
+    const motivo = form.querySelector('[name="motivo"]').value.trim();
+
+    if (!valor || valor <= 0 || !motivo) {
+        mostrarAlertaCaja(alerta, '⚠️ Ingresa valor y motivo.', 'err');
+        return;
+    }
+
+    try {
+        const res  = await fetch('/caja/alse', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_CAJA },
+            body: JSON.stringify({ valor, motivo }),
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+            form.reset();
+            mostrarAlertaCaja(alerta, '✅ ALSÉ registrado correctamente.', 'ok');
+            setTimeout(() => location.reload(), 1200);
+        } else {
+            mostrarAlertaCaja(alerta, '❌ ' + (data.mensaje ?? 'Error'), 'err');
+        }
+    } catch {
+        mostrarAlertaCaja(alerta, '❌ Error de conexión.', 'err');
+    }
+}
+
+function mostrarAlertaCaja(el, texto, tipo) {
+    el.textContent = texto;
+    el.style.backgroundColor = tipo === 'ok' ? '#132a1e' : '#4a0e0e';
+    el.style.color           = tipo === 'ok' ? '#4ade80' : '#fca5a5';
+    el.classList.remove('hidden');
+    setTimeout(() => el.classList.add('hidden'), 4000);
+}
+</script>
 
 <!-- Botón regresar -->
 <a href="<?= View::escape($dashboardUrl) ?>"

@@ -19,6 +19,12 @@ final class Configuracion
         );
     }
 
+    public function get(string $clave, string $default = '0'): string
+    {
+        $result = $this->getMany([$clave]);
+        return $result[$clave] ?? $default;
+    }
+
     public function getMany(array $claves): array
     {
         if (empty($claves)) return [];

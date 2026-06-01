@@ -7,7 +7,7 @@ namespace App\Controllers;
 use App\Core\{Csrf, Logger, Request, Response, Session, View};
 use App\Enums\Rol;
 use App\Middleware\AuthMiddleware;
-use App\Models\{Caja, HistorialCaja, Venta};
+use App\Models\{Caja, CajaApertura, HistorialCaja, Venta};
 
 final class CajaController
 {
@@ -36,10 +36,14 @@ final class CajaController
             if ($m['tipo'] === 'retiro')  $retirosHoy  += (float) $m['valor'];
         }
 
+        $esAdmin         = $rol?->atLeast(Rol::Administrador) ?? false;
+        $aperturaHoy     = $esAdmin ? (new CajaApertura())->getHoy() : null;
+
         View::render('caja/index', compact(
             'total', 'movimientosHoy', 'dashboardUrl',
             'hoy', 'ayer', 'lunEs', 'priMes',
-            'ingresosHoy', 'retirosHoy', 'ventasPendientesHoy'
+            'ingresosHoy', 'retirosHoy', 'ventasPendientesHoy',
+            'esAdmin', 'aperturaHoy'
         ));
     }
 

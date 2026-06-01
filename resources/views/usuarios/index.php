@@ -6,7 +6,7 @@ $pageTitle = 'Usuarios — Kokoro Pollo';
 $extraHead = '<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11" defer></script>';
 require dirname(__DIR__) . '/partials/head.php';
 ?>
-<body class="bg-app min-h-screen py-8 pb-28">
+<body class="min-h-screen py-8 pb-28" style="background:linear-gradient(135deg,#3b0a0a 0%,#4a0e0e 40%,#2b1a1a 100%);">
 
 <?php require dirname(__DIR__) . '/partials/toasts.php' ?>
 
@@ -14,7 +14,7 @@ require dirname(__DIR__) . '/partials/head.php';
 
     <!-- Header -->
     <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
-        <a href="/dashboard"
+        <a href="<?= \App\Core\View::escape($dashboardUrl ?? '/dashboard') ?>"
            class="font-black text-lg px-6 py-3 rounded-xl btn-primary">
             ← REGRESAR
         </a>
@@ -91,6 +91,7 @@ require dirname(__DIR__) . '/partials/head.php';
                         class="w-full text-xl px-4 py-3 rounded-xl input-dark"
                         style="color:var(--oro); appearance:none;">
                     <option value="" style="background-color:var(--rojo-deep);">Seleccione...</option>
+                    <option value="Jefe"          style="background-color:var(--rojo-deep);">Jefe</option>
                     <option value="Administrador" style="background-color:var(--rojo-deep);">Administrador</option>
                     <option value="Empleado"      style="background-color:var(--rojo-deep);">Empleado</option>
                 </select>
@@ -182,7 +183,9 @@ function cargarUsuarios() {
                     <td class="px-5 py-4">${escAttr(u.usuario)}</td>
                     <td class="px-5 py-4">
                         <span class="px-3 py-1 rounded-full text-sm font-bold"
-                              style="${u.rol === 'Administrador'
+                              style="${u.rol === 'Jefe'
+                                  ? 'background-color:#4a1942; color:#e879f9;'
+                                  : u.rol === 'Administrador'
                                   ? 'background-color:#78350f; color:#fde68a;'
                                   : 'background-color:#1e3a5f; color:#bfdbfe;'}">
                             ${escAttr(u.rol)}

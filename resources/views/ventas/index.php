@@ -7,7 +7,7 @@ $productosJson        = isset($productosJson) ? (string) $productosJson : '[]';
 $categoriasConfig     = (isset($categoriasConfig) && is_array($categoriasConfig)) ? $categoriasConfig : [];
 $totalDia             = isset($totalDia) ? (float) $totalDia : 0.0;
 $dashboardUrl         = isset($dashboardUrl) ? (string) $dashboardUrl : '/dashboard';
-$preciosPolloJson     = isset($preciosPolloJson) ? (string) $preciosPolloJson : '{"Asado":{"cuarto":0,"medio":0,"entero":0},"Broaster":{"cuarto":0,"medio":0,"entero":0}}';
+$preciosPolloJson     = isset($preciosPolloJson) ? (string) $preciosPolloJson : '{"cuarto":0,"medio":0,"entero":0}';
 $pendienteLiquidacion = isset($pendienteLiquidacion) ? (float) $pendienteLiquidacion : 0.0;
 $cajaTotal            = isset($cajaTotal) ? (float) $cajaTotal : 0.0;
 $cajaMovimientos      = (isset($cajaMovimientos) && is_array($cajaMovimientos)) ? $cajaMovimientos : [];
@@ -94,6 +94,18 @@ body { background: linear-gradient(135deg,#3b0a0a 0%,#4a0e0e 40%,#2b1a1a 100%); 
 }
 .carrito-item:not(:last-child) { margin-bottom: .5rem; }
 
+/* ── Selector tipo pedido ── */
+.tipo-btn {
+    padding: .45rem 1.1rem; border-radius: 9999px; font-weight: 700; font-size: .9rem;
+    border: 2px solid var(--rojo-bord); background-color: var(--rojo-deep); color: #ccc;
+    cursor: pointer; transition: all .15s; white-space: nowrap;
+}
+.tipo-btn:hover  { border-color: var(--oro); color: var(--oro); }
+.tipo-btn.activa { border-color: var(--oro); background-color: var(--rojo-alt); color: var(--oro);
+                   box-shadow: 0 0 0 2px var(--oro); }
+.tipo-btn.llevar-activa { border-color: #34d399; background-color: #064e3b; color: #34d399;
+                          box-shadow: 0 0 0 2px #34d399; }
+
 /* ── Filtros categoría ── */
 .cat-btn {
     padding: .5rem 1rem; border-radius: 9999px; font-weight: 700; font-size: .95rem;
@@ -145,6 +157,42 @@ body { background: linear-gradient(135deg,#3b0a0a 0%,#4a0e0e 40%,#2b1a1a 100%); 
             <div class="w-24"></div>
         </div>
 
+        <!-- ══ SELECTOR TIPO PEDIDO ══════════════════════════ -->
+        <div class="rounded-2xl px-4 py-3 shadow-xl flex flex-wrap items-center gap-3"
+             style="background-color:var(--rojo-card);">
+            <span class="text-sm font-black uppercase tracking-wider" style="color:#9ca3af;">Tipo:</span>
+            <button class="tipo-btn activa" data-tipo="local" onclick="seleccionarTipo(this)">
+                🏠 Local
+            </button>
+            <button class="tipo-btn" data-tipo="llevar" onclick="seleccionarTipo(this)">
+                🛵 Para llevar
+            </button>
+            <span id="badgeTipo" class="hidden text-xs font-bold px-3 py-1 rounded-full"
+                  style="background-color:#064e3b; color:#34d399;">Para llevar</span>
+        </div>
+
+        <!-- Panel datos cliente (solo Para llevar) -->
+        <div id="panelCliente" class="hidden rounded-2xl p-4 shadow-xl space-y-3"
+             style="background-color:#064e3b; border:2px solid #34d399;">
+            <p class="text-sm font-black uppercase tracking-wider" style="color:#34d399;">
+                🛵 Datos del cliente (opcionales)
+            </p>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <input type="text" id="clienteNombre" placeholder="Nombre del cliente"
+                       maxlength="100"
+                       class="text-base px-3 py-2 rounded-xl font-semibold text-white"
+                       style="background-color:rgba(0,0,0,.3); border:1px solid #34d399; outline:none;">
+                <input type="tel" id="clienteTelefono" placeholder="Teléfono"
+                       maxlength="20"
+                       class="text-base px-3 py-2 rounded-xl font-semibold text-white"
+                       style="background-color:rgba(0,0,0,.3); border:1px solid #34d399; outline:none;">
+                <input type="text" id="clienteDireccion" placeholder="Dirección de entrega"
+                       maxlength="255"
+                       class="text-base px-3 py-2 rounded-xl font-semibold text-white"
+                       style="background-color:rgba(0,0,0,.3); border:1px solid #34d399; outline:none;">
+            </div>
+        </div>
+
         <!-- ══ BLOQUE 1 — Seleccionar producto ══════════════ -->
         <div class="rounded-2xl p-4 shadow-xl" style="background-color:var(--rojo-card);">
             <h2 class="font-black text-lg mb-3" style="color:var(--oro);">1️⃣ Seleccionar producto</h2>
@@ -155,7 +203,7 @@ body { background: linear-gradient(135deg,#3b0a0a 0%,#4a0e0e 40%,#2b1a1a 100%); 
                 </button>
                 <?php foreach ($categoriasConfig as $cat => $cfg): ?>
                     <button class="cat-btn" data-cat="<?= $cat ?>" onclick="filtrarCategoria(this)">
-                        <?= $cfg['emoji'] ?> <?= $cat ?>
+                        <?= $cfg['emoji'] ?> <?= $cfg['label'] ?? $cat ?>
                     </button>
                 <?php endforeach; ?>
             </div>
@@ -206,18 +254,6 @@ body { background: linear-gradient(135deg,#3b0a0a 0%,#4a0e0e 40%,#2b1a1a 100%); 
                         class="text-sm px-4 py-2 rounded-xl font-bold text-gray-400 border border-gray-600 hover:border-red-500 hover:text-red-400 transition-all">
                     ✕ Cambiar
                 </button>
-            </div>
-
-            <div id="seccionPreparacion" class="hidden mb-5">
-                <p class="text-sm font-bold mb-3" style="color:#9ca3af;">¿Cómo lo quiere?</p>
-                <div class="grid grid-cols-2 gap-3 sm:max-w-sm">
-                    <button type="button" class="corte-btn" data-prep="Asado" onclick="seleccionarPreparacion(this, 'Asado')">
-                        <span class="ce">🍗</span><span>Asado</span><span class="cs">a la brasa</span>
-                    </button>
-                    <button type="button" class="corte-btn" data-prep="Broaster" onclick="seleccionarPreparacion(this, 'Broaster')">
-                        <span class="ce">🍳</span><span>Broaster</span><span class="cs">frito crocante</span>
-                    </button>
-                </div>
             </div>
 
             <div id="seccionCorte" class="hidden mb-5">

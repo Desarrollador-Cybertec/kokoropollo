@@ -59,6 +59,16 @@ final class Inventario
         $stmt->execute([$id]);
     }
 
+    public function countCritico(): int
+    {
+        $stmt = Database::getInstance()->query(
+            "SELECT COUNT(*) FROM inventario
+             WHERE (categoria = 'Pollo Crudo' AND cantidad < 4)
+                OR (categoria != 'Pollo Crudo' AND cantidad <= 5)"
+        );
+        return (int) $stmt->fetchColumn();
+    }
+
     public function forSelect(): array
     {
         $stmt = Database::getInstance()->query(

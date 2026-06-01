@@ -4,17 +4,41 @@
 const CSRF = document.querySelector('meta[name="csrf-token"]').content;
 
 /* ── Estado global ── */
-let prodSeleccionado = null;  // { id, nombre, precio, stock, cat }
-let preparacionActual = null; // Asado | Broaster
-let corteActual      = null;  // { nombre, mult }
-let carrito          = [];    // [{ uid, id, nombre, corte, preparacion, cantForm, cantInv, precio, subtotal, costoUnit, costoSubtotal, margenSubtotal }]
-let pedidosHoy       = [];    // historial visual del día
+let prodSeleccionado  = null;    // { id, nombre, precio, stock, cat }
+let corteActual       = null;    // { nombre, mult }
+let carrito           = [];      // [{ uid, id, nombre, ... }]
+let pedidosHoy        = [];      // historial visual del día
+let tipoPedidoActual  = 'local'; // 'local' | 'llevar'
 
 /* ── Helpers ── */
 function fmt(n) { return Math.round(n).toLocaleString('es-CO'); }
 function genOrdenId() {
     return Date.now().toString(36).slice(-6).toUpperCase() +
            Math.random().toString(36).slice(2, 6).toUpperCase();
+}
+
+/* ── Tipo de pedido ── */
+function seleccionarTipo(btn) {
+    document.querySelectorAll('.tipo-btn').forEach(b => {
+        b.classList.remove('activa', 'llevar-activa');
+    });
+    tipoPedidoActual = btn.dataset.tipo;
+    const esLlevar   = tipoPedidoActual === 'llevar';
+    btn.classList.add(esLlevar ? 'llevar-activa' : 'activa');
+
+    const panel = document.getElementById('panelCliente');
+    const badge = document.getElementById('badgeTipo');
+    if (panel) panel.classList.toggle('hidden', !esLlevar);
+    if (badge) badge.classList.toggle('hidden', !esLlevar);
+}
+
+function getDatosCliente() {
+    if (tipoPedidoActual !== 'llevar') return {};
+    return {
+        nombre_cliente: document.getElementById('clienteNombre')?.value.trim()   || null,
+        telefono:       document.getElementById('clienteTelefono')?.value.trim() || null,
+        direccion:      document.getElementById('clienteDireccion')?.value.trim()|| null,
+    };
 }
 
 /* ── Filtrar por categoría ── */
@@ -40,7 +64,6 @@ function seleccionarProducto(card) {
         stock:  parseInt(card.dataset.stock),
         cat:    card.dataset.cat,
     };
-    preparacionActual = null;
     corteActual = null;
 
     const esPolloCrudo = prodSeleccionado.cat === 'Pollo Crudo';
@@ -52,24 +75,18 @@ function seleccionarProducto(card) {
         : `$${fmt(prodSeleccionado.precio)} / unidad`;
 
     document.getElementById('cfgNombre').textContent = prodSeleccionado.nombre;
-    document.getElementById('cfgPrecio').textContent =
-        precioTxt + ' · ' + stockTxt;
+    document.getElementById('cfgPrecio').textContent = precioTxt + ' · ' + stockTxt;
     document.getElementById('cfgCantidad').value = 1;
     document.getElementById('cfgSubtotal').textContent = '$0';
     document.getElementById('alertaStockCfg').classList.add('hidden');
     document.getElementById('btnAgregar').disabled = true;
 
-    const esPollo   = esPolloCrudo;
-    const secPrep   = document.getElementById('seccionPreparacion');
-    const secCorte  = document.getElementById('seccionCorte');
-    secPrep.classList.toggle('hidden', !esPollo);
-    secCorte.classList.toggle('hidden', !esPollo);
+    const secCorte = document.getElementById('seccionCorte');
+    secCorte.classList.toggle('hidden', !esPolloCrudo);
+    document.querySelectorAll('.corte-btn').forEach(b => b.classList.remove('activo'));
 
-    document.querySelectorAll('#seccionPreparacion .corte-btn').forEach(b => b.classList.remove('activo'));
-
-    if (!esPollo) {
+    if (!esPolloCrudo) {
         corteActual = { nombre: 'Unidad', mult: 1 };
-        document.querySelectorAll('.corte-btn').forEach(b => b.classList.remove('activo'));
         recalcSubtotal();
     }
 
@@ -79,29 +96,15 @@ function seleccionarProducto(card) {
 
 function deseleccionarProducto() {
     prodSeleccionado = null;
-    preparacionActual = null;
     corteActual      = null;
     document.querySelectorAll('.prod-card').forEach(c => c.classList.remove('activa'));
     document.querySelectorAll('.corte-btn').forEach(b => b.classList.remove('activo'));
     document.getElementById('configPanel').classList.add('hidden');
 }
 
-/* ── Seleccionar preparación ── */
-function seleccionarPreparacion(btn, tipo) {
-    if (!prodSeleccionado || prodSeleccionado.cat !== 'Pollo Crudo') return;
-    document.querySelectorAll('#seccionPreparacion .corte-btn').forEach(b => b.classList.remove('activo'));
-    btn.classList.add('activo');
-    preparacionActual = tipo;
-    corteActual = null;
-    document.querySelectorAll('#seccionCorte .corte-btn').forEach(b => b.classList.remove('activo'));
-    document.getElementById('cfgSubtotal').textContent = '$0';
-    document.getElementById('btnAgregar').disabled = true;
-}
-
 /* ── Seleccionar corte ── */
 function seleccionarCorte(btn, nombre) {
     if (!prodSeleccionado) return;
-    if (prodSeleccionado.cat === 'Pollo Crudo' && !preparacionActual) return;
 
     document.querySelectorAll('#seccionCorte .corte-btn').forEach(b => b.classList.remove('activo'));
     btn.classList.add('activo');
@@ -110,9 +113,8 @@ function seleccionarCorte(btn, nombre) {
 
     // Precio configurado para este corte (si existe y es > 0)
     let precioCorte = null;
-    if (prodSeleccionado && corteKey && preparacionActual && PRECIOS_POLLO[preparacionActual]) {
-        const p = PRECIOS_POLLO[preparacionActual][corteKey];
-        if (p && p > 0) precioCorte = p;
+    if (corteKey && PRECIOS_POLLO[corteKey] > 0) {
+        precioCorte = PRECIOS_POLLO[corteKey];
     }
 
     corteActual = { nombre, mult, precioCorte };
@@ -153,11 +155,7 @@ function agregarAlCarrito() {
     const cant    = Math.max(1, parseInt(document.getElementById('cfgCantidad').value) || 1);
     const cantInv = cant * corteActual.mult;
     const esPollo = prodSeleccionado.cat === 'Pollo Crudo';
-    if (esPollo && !preparacionActual) return;
 
-    // Con precio config: sub = precioCorte × cant
-    // precio enviado al servidor = precioCorte / mult → total en server = (precioCorte/mult) × cantInv = precioCorte × cant ✓
-    // Sin config: comportamiento original precio_por_cuarto × cantInv
     let sub, precio;
     if (corteActual.precioCorte) {
         sub    = corteActual.precioCorte * cant;
@@ -167,11 +165,11 @@ function agregarAlCarrito() {
         precio = prodSeleccionado.precio;
     }
 
-    const costoUnit = prodSeleccionado.precio * corteActual.mult;
-    const costoSubtotal = costoUnit * cant;
+    const costoUnit      = prodSeleccionado.precio * corteActual.mult;
+    const costoSubtotal  = costoUnit * cant;
     const margenSubtotal = sub - costoSubtotal;
-    const nombreVenta = esPollo
-        ? `${preparacionActual} - ${corteActual.nombre}`
+    const nombreVenta    = esPollo
+        ? `Asado — ${corteActual.nombre}`
         : prodSeleccionado.nombre;
 
     carrito.push({
@@ -179,7 +177,6 @@ function agregarAlCarrito() {
         id:       prodSeleccionado.id,
         nombre:   nombreVenta,
         corte:    corteActual.nombre,
-        preparacion: preparacionActual,
         cantForm: cant,
         cantInv:  cantInv,
         precio:   precio,
@@ -259,7 +256,6 @@ function agregarAcompSeleccionados() {
             id:       parseInt(btn.dataset.id),
             nombre:   btn.dataset.nombre,
             corte:    'Unidad',
-            preparacion: null,
             cantForm: 1,
             cantInv:  1,
             precio:   parseFloat(btn.dataset.precio),
@@ -303,7 +299,6 @@ function renderCarrito() {
             <div class="flex-1 min-w-0">
                 <p class="font-bold text-white text-base leading-tight">${item.nombre}</p>
                 <p class="text-sm" style="color:#9ca3af;">
-                    ${item.preparacion ? item.preparacion + ' · ' : ''}
                     ${item.corte !== 'Unidad' ? item.corte + ' · ' : ''}
                     ${item.cantForm} × $${fmt(item.precio)}
                     ${item.cantInv > item.cantForm ? '(descuenta ' + item.cantInv + ' uds)' : ''}
@@ -357,6 +352,8 @@ async function registrarPedido() {
                     inventario_id:   item.id,
                     cantidad:        item.cantInv,
                     precio_unitario: item.precio,
+                    tipo_pedido:     tipoPedidoActual,
+                    ...getDatosCliente(),
                 }),
             });
             const data = await res.json();
@@ -420,7 +417,7 @@ function actualizarStockCard(prodId, cantDeducida) {
 
 /* ── Historial visual del día ── */
 function agregarPedidoAlHistorial(ordenId, items, total) {
-    pedidosHoy.unshift({ ordenId, items: [...items], total });
+    pedidosHoy.unshift({ ordenId, items: [...items], total, tipo: tipoPedidoActual, ...getDatosCliente() });
     renderHistorial();
     document.getElementById('seccionHistorial').classList.remove('hidden');
 }
@@ -432,7 +429,7 @@ function renderHistorial() {
             <button onclick="togglePedido(${idx})"
                     class="w-full flex justify-between items-center px-4 py-3 font-bold text-left transition-all"
                     style="background-color:var(--rojo-alt); color:var(--oro);">
-                <span>📦 Pedido #${pedido.ordenId} — ${pedido.items.length} ítem(s)</span>
+                <span>${pedido.tipo === 'llevar' ? '🛵' : '🏠'} Pedido #${pedido.ordenId} — ${pedido.items.length} ítem(s)${pedido.tipo === 'llevar' ? ' · <span style="color:#34d399;">Para llevar</span>' : ''}</span>
                 <span>$${fmt(pedido.total)} ▾</span>
             </button>
             <div id="pedido-${idx}" class="hidden">

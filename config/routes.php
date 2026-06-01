@@ -3,8 +3,13 @@
 declare(strict_types=1);
 
 use App\Controllers\{
+    AlsesController,
     AuthController,
+    CajaAperturaController,
+    CajaCierreController,
+    CreditosController,
     ConfigController,
+    ReportesController,
     DashboardController,
     InventarioController,
     CajaController,
@@ -18,9 +23,10 @@ $router->get('/',          [AuthController::class,      'showLogin']);
 $router->post('/login',    [AuthController::class,      'login']);
 $router->get('/logout',    [AuthController::class,      'logout']);
 
-// ── Dashboards (ambas rutas → mismo controlador unificado) ─
+// ── Dashboards ─────────────────────────────────────────────
 $router->get('/dashboard',          [DashboardController::class, 'index']);
 $router->get('/dashboard/empleado', [DashboardController::class, 'index']);
+$router->get('/dashboard/jefe',     [DashboardController::class, 'indexJefe']);
 
 // ── Inventario ─────────────────────────────────────────────
 $router->get('/inventario',         [InventarioController::class, 'index']);
@@ -29,10 +35,27 @@ $router->post('/inventario/update', [InventarioController::class, 'update']);
 $router->post('/inventario/delete', [InventarioController::class, 'destroy']);
 
 // ── Caja ───────────────────────────────────────────────────
-$router->get('/caja',          [CajaController::class, 'index']);
-$router->post('/caja',         [CajaController::class, 'process']);
-$router->get('/caja/resumen',  [CajaController::class, 'resumen']);
-$router->post('/caja/ajuste',  [CajaController::class, 'ajuste']);
+$router->get('/caja',               [CajaController::class, 'index']);
+$router->post('/caja',              [CajaController::class, 'process']);
+$router->get('/caja/resumen',       [CajaController::class, 'resumen']);
+$router->post('/caja/ajuste',       [CajaController::class, 'ajuste']);
+
+// ── Apertura de Caja (solo Admin) ──────────────────────────
+$router->get('/caja/apertura',      [CajaAperturaController::class, 'index']);
+$router->post('/caja/apertura',     [CajaAperturaController::class, 'store']);
+
+// ── Cierre de Caja (solo Admin) ────────────────────────────
+$router->get('/caja/cierre',        [CajaCierreController::class, 'index']);
+$router->post('/caja/cierre',       [CajaCierreController::class, 'store']);
+
+// ── Créditos a Empleados (solo Admin) ──────────────────────
+$router->get('/creditos',           [CreditosController::class, 'index']);
+$router->post('/creditos/crear',    [CreditosController::class, 'crear']);
+$router->post('/creditos/pagar',    [CreditosController::class, 'pagar']);
+$router->post('/creditos/vencer',   [CreditosController::class, 'vencer']);
+
+// ── ALSÉS / Retiros de Seguridad (solo Admin) ──────────────
+$router->post('/caja/alse',         [AlsesController::class, 'store']);
 
 // ── Historial ──────────────────────────────────────────────
 $router->get('/historial', [HistorialController::class, 'index']);
@@ -43,8 +66,16 @@ $router->post('/ventas/store',     [VentasController::class, 'store']);
 $router->post('/ventas/liquidar',  [VentasController::class, 'liquidar']);
 
 // ── Configuración (solo Administrador) ────────────────────
-$router->get('/config',  [ConfigController::class, 'index']);
-$router->post('/config', [ConfigController::class, 'save']);
+$router->get('/config',                    [ConfigController::class, 'index']);
+$router->post('/config',                   [ConfigController::class, 'save']);
+$router->post('/config/reset-condimentos', [ConfigController::class, 'resetCondimentos']);
+
+// ── Reportes Gerenciales (solo Administrador) ──────────────
+$router->get('/reportes',            [ReportesController::class, 'index']);
+$router->get('/reportes/diario',     [ReportesController::class, 'diario']);
+$router->get('/reportes/semanal',    [ReportesController::class, 'semanal']);
+$router->get('/reportes/mensual',    [ReportesController::class, 'mensual']);
+$router->get('/reportes/productos',  [ReportesController::class, 'productos']);
 
 // ── Usuarios (solo Administrador) ──────────────────────────
 $router->get('/usuarios',           [UsuariosController::class, 'index']);

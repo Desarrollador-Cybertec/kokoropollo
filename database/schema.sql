@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS `usuarios` (
     `nombre`  VARCHAR(100)                         NOT NULL,
     `usuario` VARCHAR(60)                          NOT NULL,
     `clave`   VARCHAR(255)                         NOT NULL,
-    `rol`     ENUM('Administrador', 'Empleado')    NOT NULL DEFAULT 'Empleado',
+    `rol`     ENUM('Jefe', 'Administrador', 'Empleado') NOT NULL DEFAULT 'Empleado',
     `creado`  DATETIME                             NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_usuario` (`usuario`)
@@ -102,9 +102,6 @@ CREATE TABLE IF NOT EXISTS `configuracion` (
 
 -- Precios iniciales en 0 (configurar desde /config)
 INSERT IGNORE INTO `configuracion` (`clave`, `valor`) VALUES
-    ('precio_asado_cuarto',    '0'),
-    ('precio_asado_medio',     '0'),
-    ('precio_asado_entero',    '0'),
-    ('precio_broaster_cuarto', '0'),
-    ('precio_broaster_medio',  '0'),
-    ('precio_broaster_entero', '0');
+    ('precio_asado_cuarto', '0'),
+    ('precio_asado_medio',  '0'),
+    ('precio_asado_entero', '0');
