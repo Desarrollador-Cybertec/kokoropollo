@@ -1,7 +1,51 @@
+# Dependencias
 vendor/
+
+# Variables de entorno y secretos
 .env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Logs y almacenamiento temporal
 storage/logs/*.log
-*.zip
+storage/cache/
+storage/sessions/
+storage/tmp/
+
+# Backups y archivos sensibles de BD
 backups/
+database/seed.php
+database/reset.php
+*.sql.bak
+*.dump
+
+# Archivos de desarrollo y herramientas locales
 .php-ini
 resultado-gobuster.txt
+*.zip
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs y editores
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Archivos de debug y pruebas
+public/test.php
+*.test.php
+xdebug.log
+
+# Composer lock (incluir en control de versiones; excluir solo en librerías)
+# composer.lock  ← NO ignorar, es buena práctica para apps
+
+# Documentos internos / análisis
+kokoropollo_actual.md
+requirements_v2.md
