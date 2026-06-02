@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use App\Core\{Csrf, Request, Response, Session, View};
+use App\Core\{Csrf, Logger, Request, Response, Session, View};
 use App\Enums\Rol;
 use App\Middleware\RoleMiddleware;
 use App\Models\{Auditoria, Configuracion, Inventario, Venta};
@@ -50,8 +50,16 @@ final class ConfigController
         RoleMiddleware::require(Rol::Jefe);
 
         if (!Csrf::validateToken($request->csrfToken())) {
+            Logger::getInstance()->warning('CSRF inválido en ConfigController::save', [
+                'usuario' => Session::get('usuario', ''),
+                'token_en_sesion' => Session::get('_csrf') !== null ? 'existe' : 'NO existe',
+                'token_recibido'  => substr($request->csrfToken(), 0, 8) ?: '(vacío)',
+            ]);
+            Session::flash('error', 'Error de seguridad al guardar. Recarga la página e intenta de nuevo.');
             Response::redirect('/config');
         }
+
+        Logger::getInstance()->info('Intento de guardar configuración', ['usuario' => Session::get('usuario', '')]);
 
         $cfg       = new Configuracion();
         $oldPrecios = $cfg->getMany(self::PRECIOS_KEYS);
@@ -135,6 +143,10 @@ final class ConfigController
         RoleMiddleware::require(Rol::Jefe);
 
         if (!Csrf::validateToken($request->csrfToken())) {
+            Logger::getInstance()->warning('CSRF inválido en ConfigController::resetCondimentos', [
+                'usuario' => Session::get('usuario', ''),
+            ]);
+            Session::flash('error', 'Error de seguridad. Recarga la página e intenta de nuevo.');
             Response::redirect('/config');
         }
 

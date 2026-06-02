@@ -5,7 +5,7 @@ RewriteEngine On
 # Sin esto, el cookie de sesión (secure=true) nunca se envía en HTTP,
 # lo que provoca un loop infinito de redirección → ERR_TOO_MANY_REDIRECTS.
 RewriteCond %{HTTPS} off
-RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=307,L]
 
 # Permitir acceso directo a archivos reales (css, img, js)
 RewriteCond %{REQUEST_FILENAME} !-f
