@@ -14,6 +14,7 @@ $cajaMovimientos      = (isset($cajaMovimientos) && is_array($cajaMovimientos)) 
 $cajaIngresos         = isset($cajaIngresos) ? (float) $cajaIngresos : 0.0;
 $cajaRetiros          = isset($cajaRetiros) ? (float) $cajaRetiros : 0.0;
 $esAdmin              = isset($esAdmin) ? (bool) $esAdmin : false;
+$empleadosCredito     = (isset($empleadosCredito) && is_array($empleadosCredito)) ? $empleadosCredito : [];
 
 $pageTitle = 'Ventas — Kokoro Pollo';
 require dirname(__DIR__) . '/partials/head.php';
@@ -439,40 +440,105 @@ body { background: linear-gradient(135deg,#3b0a0a 0%,#4a0e0e 40%,#2b1a1a 100%); 
             </div>
         </div>
 
-        <!-- Formularios Añadir / Retirar -->
-        <div class="rounded-2xl p-4 shadow-xl space-y-3" style="background-color:var(--rojo-card);">
-            <h3 class="font-black text-base uppercase tracking-wider" style="color:var(--oro);">Ajustar caja</h3>
-
-            <!-- Añadir -->
-            <form id="formAnadir" onsubmit="submitAjusteCaja(event, 'anadir')">
-                <div class="flex gap-2 mb-2">
-                    <input type="number" step="1" min="1" placeholder="Valor" required
-                           name="valor" class="caja-input" style="flex:1;">
-                    <input type="text" placeholder="Concepto" maxlength="255"
-                           name="concepto" class="caja-input" style="flex:2;">
-                </div>
-                <button type="submit"
-                        class="w-full font-black text-base py-3 rounded-xl uppercase tracking-wide btn-green">
-                    ➕ Añadir
-                </button>
-            </form>
-
-            <!-- Retirar -->
-            <form id="formRetirar" onsubmit="submitAjusteCaja(event, 'retirar')">
-                <div class="flex gap-2 mb-2">
-                    <input type="number" step="1" min="1" placeholder="Valor" required
-                           name="valor" class="caja-input" style="flex:1;">
-                    <input type="text" placeholder="Concepto" maxlength="255"
-                           name="concepto" class="caja-input" style="flex:2;">
-                </div>
-                <button type="submit"
-                        class="w-full font-black text-base py-3 rounded-xl uppercase tracking-wide btn-danger">
-                    ➖ Retirar
-                </button>
-            </form>
-
-            <div id="alertaCaja" class="hidden text-center font-bold px-3 py-2 rounded-xl text-sm"></div>
+        <!-- Formularios Añadir / Retirar (compacto) -->
+        <div class="rounded-2xl p-3 shadow-xl" style="background-color:var(--rojo-card);">
+            <h3 class="font-black text-xs uppercase tracking-wider mb-2" style="color:var(--oro);">⚖️ Ajustar caja</h3>
+            <div class="grid grid-cols-2 gap-2">
+                <form id="formAnadir" onsubmit="submitAjusteCaja(event, 'anadir')" class="space-y-1">
+                    <div class="flex gap-1">
+                        <input type="number" step="1" min="1" placeholder="Valor" required
+                               name="valor" class="caja-input text-sm" style="flex:1; padding:.35rem .5rem;">
+                        <input type="text" placeholder="Concepto" maxlength="255"
+                               name="concepto" class="caja-input text-sm" style="flex:2; padding:.35rem .5rem;">
+                    </div>
+                    <button type="submit"
+                            class="w-full font-black text-sm py-2 rounded-lg uppercase tracking-wide btn-green">
+                        ➕ Añadir
+                    </button>
+                </form>
+                <form id="formRetirar" onsubmit="submitAjusteCaja(event, 'retirar')" class="space-y-1">
+                    <div class="flex gap-1">
+                        <input type="number" step="1" min="1" placeholder="Valor" required
+                               name="valor" class="caja-input text-sm" style="flex:1; padding:.35rem .5rem;">
+                        <input type="text" placeholder="Concepto" maxlength="255"
+                               name="concepto" class="caja-input text-sm" style="flex:2; padding:.35rem .5rem;">
+                    </div>
+                    <button type="submit"
+                            class="w-full font-black text-sm py-2 rounded-lg uppercase tracking-wide btn-danger">
+                        ➖ Retirar
+                    </button>
+                </form>
+            </div>
+            <div id="alertaCaja" class="hidden text-center font-bold px-2 py-1.5 rounded-lg text-xs mt-2"></div>
         </div>
+
+        <?php if ($esAdmin && !empty($empleadosCredito)): ?>
+        <!-- ══ PANEL PRÉSTAMOS A EMPLEADOS ══════════════════════ -->
+        <div class="rounded-2xl shadow-xl overflow-hidden" style="background-color:var(--rojo-card);">
+            <div class="px-4 py-3 flex justify-between items-center" style="background-color:var(--rojo-mid);">
+                <div class="flex items-center gap-3">
+                    <h3 class="font-black text-sm uppercase tracking-wider" style="color:#fbbf24;">
+                        💳 Préstamos empleados
+                    </h3>
+                    <span id="badgeCreditos" class="text-xs font-black px-2 py-0.5 rounded-full hidden"
+                          style="background-color:#7f1d1d; color:#fca5a5; border:1px solid #ef4444;"></span>
+                </div>
+                <button onclick="toggleFormCredito()"
+                        id="btnToggleCredito"
+                        class="text-xs font-bold px-3 py-1.5 rounded-lg transition-all"
+                        style="background-color:#78350f; color:#fbbf24; border:1px solid #f59e0b;">
+                    ＋ Nuevo
+                </button>
+            </div>
+
+            <!-- Formulario nuevo préstamo (oculto por defecto) -->
+            <div id="formCreditoWrap" class="hidden px-4 py-3 border-b" style="border-color:var(--rojo-bord); background-color:rgba(0,0,0,.2);">
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <div class="col-span-2">
+                        <label class="text-xs font-bold mb-1 block" style="color:#9ca3af;">Empleado</label>
+                        <select id="creditoEmpleado" class="caja-input text-sm w-full">
+                            <option value="">— Seleccionar —</option>
+                            <?php foreach ($empleadosCredito as $emp): ?>
+                            <option value="<?= (int)$emp['id'] ?>"><?= View::escape($emp['nombre']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold mb-1 block" style="color:#9ca3af;">Valor ($)</label>
+                        <input type="number" id="creditoValor" min="1" step="1" placeholder="0"
+                               class="caja-input text-sm w-full">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold mb-1 block" style="color:#9ca3af;">Fecha compromiso</label>
+                        <input type="date" id="creditoFecha" class="caja-input text-sm w-full"
+                               min="<?= date('Y-m-d') ?>">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="text-xs font-bold mb-1 block" style="color:#9ca3af;">Observaciones (opcional)</label>
+                        <input type="text" id="creditoObs" maxlength="200" placeholder="Motivo del préstamo..."
+                               class="caja-input text-sm w-full">
+                    </div>
+                </div>
+                <button onclick="crearCredito()"
+                        id="btnCrearCredito"
+                        class="w-full font-black text-sm py-2 rounded-lg btn-primary">
+                    💳 Registrar préstamo
+                </button>
+                <div id="alertaCredito" class="hidden mt-2 text-center font-bold px-2 py-1.5 rounded-lg text-xs"></div>
+            </div>
+
+            <!-- Lista de créditos pendientes/vencidos -->
+            <div id="listaCreditos" class="text-sm" style="max-height:260px; overflow-y:auto;">
+                <div class="px-4 py-3 text-center text-xs" style="color:#6b7280;">Cargando...</div>
+            </div>
+
+            <div class="px-4 py-2 text-xs flex justify-between items-center" style="color:#6b7280; border-top:1px solid var(--rojo-bord);">
+                <span id="resumenCreditos">—</span>
+                <a href="/creditos" class="font-bold hover:text-yellow-400 transition-colors">Ver todo →</a>
+            </div>
+        </div>
+        <?php endif; ?>
+
 
         <!-- Actividad de hoy -->
         <div class="rounded-2xl shadow-xl overflow-hidden" style="background-color:var(--rojo-card);">
@@ -533,8 +599,155 @@ const PRECIOS_POLLO = <?= $preciosPolloJson ?>;
 let totalDiaAcum    = <?= (float)$totalDia ?>;
 let pendienteAcum   = <?= (float)$pendienteLiquidacion ?>;
 const CAJA_MOV_INICIAL = <?= json_encode($cajaMovimientos, JSON_UNESCAPED_UNICODE) ?>;
+const ES_ADMIN      = <?= $esAdmin ? 'true' : 'false' ?>;
 </script>
 <script src="/js/ventas.js"></script>
+<?php if ($esAdmin && !empty($empleadosCredito)): ?>
+<script>
+/* ── Panel de préstamos a empleados ── */
+function toggleFormCredito() {
+    const wrap = document.getElementById('formCreditoWrap');
+    const btn  = document.getElementById('btnToggleCredito');
+    const open = wrap.classList.toggle('hidden');
+    btn.textContent = open ? '＋ Nuevo' : '✕ Cerrar';
+}
+
+async function cargarCreditos() {
+    try {
+        const res  = await fetch('/creditos/list', { headers: { 'X-CSRF-Token': CSRF } });
+        const data = await res.json();
+        renderCreditos(data);
+    } catch {
+        document.getElementById('listaCreditos').innerHTML =
+            '<div class="px-4 py-3 text-center text-xs" style="color:#ef4444;">Error al cargar</div>';
+    }
+}
+
+function renderCreditos(lista) {
+    const el = document.getElementById('listaCreditos');
+    const badge = document.getElementById('badgeCreditos');
+    const resumen = document.getElementById('resumenCreditos');
+
+    if (!lista.length) {
+        el.innerHTML = '<div class="px-4 py-3 text-center text-xs" style="color:#6b7280;">Sin préstamos pendientes ✓</div>';
+        badge.classList.add('hidden');
+        resumen.textContent = 'Sin deuda pendiente';
+        return;
+    }
+
+    const total = lista.reduce((s, c) => s + Number(c.valor), 0);
+    const vencidos = lista.filter(c => c.estado === 'vencido').length;
+
+    badge.textContent = lista.length + (vencidos ? ` · ${vencidos} vencido${vencidos>1?'s':''}` : '');
+    badge.classList.remove('hidden');
+    if (vencidos) {
+        badge.style.backgroundColor = '#7f1d1d';
+        badge.style.color = '#fca5a5';
+        badge.style.borderColor = '#ef4444';
+    } else {
+        badge.style.backgroundColor = '#3a2a0f';
+        badge.style.color = '#fbbf24';
+        badge.style.borderColor = '#f59e0b';
+    }
+    resumen.textContent = `Cartera: $${Math.round(total).toLocaleString('es-CO')}`;
+
+    el.innerHTML = lista.map(c => {
+        const esVencido = c.estado === 'vencido';
+        const color     = esVencido ? '#fca5a5' : '#fbbf24';
+        const bg        = esVencido ? 'rgba(127,29,29,.35)' : 'rgba(58,42,15,.35)';
+        const fecha     = c.fecha_compromiso_pago ? c.fecha_compromiso_pago.substring(0,10) : '—';
+        return `<div class="flex items-center justify-between px-3 py-2 gap-2 border-b"
+                     style="border-color:var(--rojo-bord); background-color:${bg};">
+            <div class="min-w-0 flex-1">
+                <p class="font-bold text-xs truncate" style="color:${color};">
+                    ${escapeHtml(c.nombre_empleado)}
+                    ${esVencido ? '<span style="font-size:.65rem; background:#7f1d1d; color:#fca5a5; padding:1px 5px; border-radius:99px; margin-left:4px;">VENCIDO</span>' : ''}
+                </p>
+                <p class="text-xs" style="color:#6b7280;">Hasta: ${fecha}</p>
+            </div>
+            <div class="text-right shrink-0">
+                <p class="font-black text-xs" style="color:${color};">$${Math.round(Number(c.valor)).toLocaleString('es-CO')}</p>
+                <button onclick="pagarCredito(${c.id})"
+                        class="text-xs font-bold px-2 py-0.5 rounded mt-0.5 transition-all"
+                        style="background-color:#134e2a; color:#4ade80; border:1px solid #16a34a;">
+                    ✓ Pagar
+                </button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function crearCredito() {
+    const empleadoId = document.getElementById('creditoEmpleado').value;
+    const valor      = document.getElementById('creditoValor').value;
+    const fecha      = document.getElementById('creditoFecha').value;
+    const obs        = document.getElementById('creditoObs').value.trim();
+    const alerta     = document.getElementById('alertaCredito');
+    const btn        = document.getElementById('btnCrearCredito');
+
+    if (!empleadoId || !valor || !fecha) {
+        mostrarAlerta(alerta, '⚠️ Completa empleado, valor y fecha', 'err');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Registrando...';
+
+    try {
+        const res  = await fetch('/creditos/crear', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+            body: JSON.stringify({
+                empleado_id:      parseInt(empleadoId),
+                valor:            parseFloat(valor),
+                fecha_prestamo:   new Date().toISOString().substring(0,10),
+                fecha_compromiso: fecha,
+                observaciones:    obs,
+            }),
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+            mostrarAlerta(alerta, '✅ Préstamo registrado', 'ok');
+            document.getElementById('creditoEmpleado').value = '';
+            document.getElementById('creditoValor').value    = '';
+            document.getElementById('creditoFecha').value    = '';
+            document.getElementById('creditoObs').value      = '';
+            await cargarCreditos();
+            await refrescarCaja();
+        } else {
+            mostrarAlerta(alerta, `⚠️ ${data.mensaje ?? 'Error'}`, 'err');
+        }
+    } catch {
+        mostrarAlerta(alerta, '⚠️ Error de conexión', 'err');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '💳 Registrar préstamo';
+    }
+}
+
+async function pagarCredito(id) {
+    if (!confirm('¿Confirmar pago de este préstamo?')) return;
+    try {
+        const res  = await fetch('/creditos/pagar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+            body: JSON.stringify({ id }),
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+            await cargarCreditos();
+            await refrescarCaja();
+        } else {
+            alert(data.mensaje ?? 'Error al registrar pago');
+        }
+    } catch {
+        alert('Error de conexión al registrar pago');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => cargarCreditos());
+</script>
+<?php endif; ?>
 
 </body>
 </html>

@@ -52,6 +52,7 @@ $router->post('/caja/cierre',       [CajaCierreController::class, 'store']);
 
 // ── Créditos a Empleados (solo Admin) ──────────────────────
 $router->get('/creditos',           [CreditosController::class, 'index']);
+$router->get('/creditos/list',      [CreditosController::class, 'list']);
 $router->post('/creditos/crear',    [CreditosController::class, 'crear']);
 $router->post('/creditos/pagar',    [CreditosController::class, 'pagar']);
 $router->post('/creditos/vencer',   [CreditosController::class, 'vencer']);

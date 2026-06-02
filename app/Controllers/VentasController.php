@@ -105,10 +105,20 @@ final class VentasController
             if ($m['tipo'] === 'retiro')  $cajaRetiros  += (float) $m['valor'];
         }
 
+        $empleadosCredito = [];
+        if ($esAdmin) {
+            $stmt = Database::getInstance()->prepare(
+                "SELECT id, nombre FROM usuarios WHERE rol = 'Empleado' ORDER BY nombre"
+            );
+            $stmt->execute();
+            $empleadosCredito = $stmt->fetchAll();
+        }
+
         View::render('ventas/index', compact(
             'productos', 'productosJson', 'totalDia', 'dashboardUrl',
             'categoriasConfig', 'preciosPolloJson', 'pendienteLiquidacion',
-            'cajaTotal', 'cajaMovimientos', 'cajaIngresos', 'cajaRetiros', 'esAdmin'
+            'cajaTotal', 'cajaMovimientos', 'cajaIngresos', 'cajaRetiros', 'esAdmin',
+            'empleadosCredito'
         ));
     }
 

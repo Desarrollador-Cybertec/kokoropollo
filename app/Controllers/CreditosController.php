@@ -99,6 +99,23 @@ final class CreditosController
         }
     }
 
+    public function list(Request $request): void
+    {
+        AuthMiddleware::handle();
+        $this->soloAdmin();
+
+        $stmt = \App\Core\Database::getInstance()->prepare(
+            "SELECT c.id, c.valor, c.estado, c.fecha_compromiso_pago,
+                    e.nombre AS nombre_empleado
+             FROM creditos_empleados c
+             JOIN usuarios e ON e.id = c.empleado_id
+             WHERE c.estado IN ('pendiente','vencido')
+             ORDER BY FIELD(c.estado,'vencido','pendiente'), c.fecha_compromiso_pago ASC"
+        );
+        $stmt->execute();
+        Response::json($stmt->fetchAll());
+    }
+
     public function vencer(Request $request): void
     {
         AuthMiddleware::handle();
