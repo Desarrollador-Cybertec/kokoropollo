@@ -1,6 +1,12 @@
 Options -Indexes
 RewriteEngine On
 
+# ── Forzar HTTPS ─────────────────────────────────────────────────────────────
+# Sin esto, el cookie de sesión (secure=true) nunca se envía en HTTP,
+# lo que provoca un loop infinito de redirección → ERR_TOO_MANY_REDIRECTS.
+RewriteCond %{HTTPS} off
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
 # Permitir acceso directo a archivos reales (css, img, js)
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
@@ -13,12 +19,12 @@ RewriteRule ^ index.php [QSA,L]
     Header always set X-Content-Type-Options "nosniff"
     Header always set X-Frame-Options "DENY"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
-    # A-01: HSTS — forzar HTTPS una vez activado en producción
-    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
-    # A-01: Permissions Policy
+    # HSTS — sin includeSubDomains para no afectar otros subdominios del hosting
+    Header always set Strict-Transport-Security "max-age=31536000"
+    # Permissions Policy
     Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
-    # A-01: CSP — permite Tailwind CDN, SweetAlert CDN y assets propios
-    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
+    # CSP — incluye cdnjs.cloudflare.com para Font Awesome (CSS + fuentes)
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
     # Eliminar header obsoleto X-XSS-Protection (reemplazado por CSP)
     Header always unset X-XSS-Protection
 </IfModule>
