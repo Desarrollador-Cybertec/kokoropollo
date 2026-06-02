@@ -4,7 +4,10 @@ RewriteEngine On
 # C-08: Bloquear acceso directo a archivos y directorios sensibles
 RedirectMatch 403 (?i)^/\.env(\..*)?$
 RedirectMatch 403 (?i)^/\.git(/.*)?$
-RedirectMatch 403 (?i)^/(app|config|database|storage|backups|vendor)(/.*)?$
+# Permitir rutas MVC bajo /config (panel), pero bloquear archivos internos reales
+RedirectMatch 403 (?i)^/(app|database|storage|backups|vendor)(/.*)?$
+RedirectMatch 403 (?i)^/config/.*\.php$
+RedirectMatch 403 (?i)^/config/.*\.(ini|ya?ml|json|env|dist)$
 RedirectMatch 403 (?i)^/composer\.(json|lock)$
 
 # Si existe archivo real en la raiz, servirlo tal cual (NO directorios: config/, app/, etc. deben llegar a index.php)
