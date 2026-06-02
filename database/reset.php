@@ -167,15 +167,20 @@ function executeSqlFile(PDO $pdo, string $filePath): void
     }
 }
 
-function columnExists(PDO $pdo, string $table, string $column): bool
+/**
+ * @return list<string>
+ */
+function discoverMigrationFiles(string $migrationsDir): array
 {
-    $stmt = $pdo->prepare(
-        'SELECT COUNT(*) FROM information_schema.COLUMNS
-         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
-    );
-    $stmt->execute([$table, $column]);
+    $paths = glob($migrationsDir . DIRECTORY_SEPARATOR . '*.sql');
+    if ($paths === false) {
+        return [];
+    }
 
-    return (int) $stmt->fetchColumn() > 0;
+    $files = array_map(static fn(string $path): string => basename($path), $paths);
+    natsort($files);
+
+    return array_values($files);
 }
 
 try {
@@ -234,18 +239,10 @@ try {
     echo 'Ejecutando esquema principal...' . PHP_EOL;
     executeSqlFile($pdo, ROOT_PATH . '/database/schema.sql');
 
-    $migrations = [
-        '001_caja_aperturas.sql',
-        '002_caja_cierres.sql',
-        '003_creditos_empleados.sql',
-        '004_retiros_seguridad.sql',
-        '005_ventas_tipo_pedido.sql',
-        '006_rol_jefe.sql',
-        '008_auditoria.sql',
-        '009_inventario_bebidas_porciones.sql',
-        '010_ventas_virtual_items.sql',
-        '011_security_constraints.sql',
-    ];
+    $migrations = discoverMigrationFiles(ROOT_PATH . '/database/migrations');
+    if ($migrations === []) {
+        throw new RuntimeException('No se encontraron archivos de migración en database/migrations.');
+    }
 
     echo 'Ejecutando migraciones...' . PHP_EOL;
     foreach ($migrations as $file) {

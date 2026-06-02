@@ -171,6 +171,22 @@ function executeSqlFileSafe(PDO $pdo, string $filePath): int
 }
 
 /**
+ * @return list<string>
+ */
+function discoverMigrationFiles(string $migrationsDir): array
+{
+    $paths = glob($migrationsDir . DIRECTORY_SEPARATOR . '*.sql');
+    if ($paths === false) {
+        return [];
+    }
+
+    $files = array_map(static fn(string $path): string => basename($path), $paths);
+    natsort($files);
+
+    return array_values($files);
+}
+
+/**
  * Carga el archivo .env en $_ENV / getenv() sin necesidad de la librería dotenv.
  */
 function loadEnvFallback(string $rootPath): void
@@ -275,18 +291,10 @@ try {
     executeSqlFile($pdo, ROOT_PATH . '/database/schema.sql');
 
     // ── 4. Migraciones en orden ──────────────────────────────────────────────
-    $migrations = [
-        '001_caja_aperturas.sql',
-        '002_caja_cierres.sql',
-        '003_creditos_empleados.sql',
-        '004_retiros_seguridad.sql',
-        '005_ventas_tipo_pedido.sql',
-        '006_rol_jefe.sql',
-        '008_auditoria.sql',
-        '009_inventario_bebidas_porciones.sql',
-        '010_ventas_virtual_items.sql',
-        '011_security_constraints.sql',
-    ];
+    $migrations = discoverMigrationFiles(ROOT_PATH . '/database/migrations');
+    if ($migrations === []) {
+        throw new RuntimeException('No se encontraron archivos de migración en database/migrations.');
+    }
 
     echo 'Aplicando migraciones...' . PHP_EOL;
     foreach ($migrations as $file) {

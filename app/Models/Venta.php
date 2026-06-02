@@ -8,6 +8,26 @@ use App\Core\Database;
 
 final class Venta
 {
+    /** @var array<string, bool> */
+    private static array $columnCache = [];
+
+    private static function hasColumn(string $table, string $column): bool
+    {
+        $key = $table . '.' . $column;
+        if (array_key_exists($key, self::$columnCache)) {
+            return self::$columnCache[$key];
+        }
+
+        $stmt = Database::getInstance()->prepare(
+            'SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $stmt->execute([$table, $column]);
+
+        self::$columnCache[$key] = (int) $stmt->fetchColumn() > 0;
+        return self::$columnCache[$key];
+    }
+
     /**
      * Registra una línea de venta.
      * Si inventarioId es null → porción/servicio virtual (no descuenta stock).
@@ -44,17 +64,39 @@ final class Venta
                     ->execute([$cantidad, $inventarioId]);
             }
 
-            $stmt = $pdo->prepare(
-                'INSERT INTO ventas
-                 (orden_id, inventario_id, item_descripcion, cantidad, precio_unitario, total,
-                  usuario, tipo_pedido, nombre_cliente, telefono, direccion, fecha)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())'
-            );
-            $stmt->execute([
-                $ordenId, $inventarioId, $itemDescripcion,
-                $cantidad, $precioUnitario, $total, $usuario,
-                $tipoPedido, $nombreCliente, $telefono, $direccion,
-            ]);
+            $fields = ['orden_id', 'inventario_id', 'cantidad', 'precio_unitario', 'total', 'usuario', 'fecha'];
+            $values = [$ordenId, $inventarioId, $cantidad, $precioUnitario, $total, $usuario];
+            $placeholders = ['?', '?', '?', '?', '?', '?', 'NOW()'];
+
+            if (self::hasColumn('ventas', 'item_descripcion')) {
+                $fields[] = 'item_descripcion';
+                $values[] = $itemDescripcion;
+                $placeholders[] = '?';
+            }
+            if (self::hasColumn('ventas', 'tipo_pedido')) {
+                $fields[] = 'tipo_pedido';
+                $values[] = $tipoPedido;
+                $placeholders[] = '?';
+            }
+            if (self::hasColumn('ventas', 'nombre_cliente')) {
+                $fields[] = 'nombre_cliente';
+                $values[] = $nombreCliente;
+                $placeholders[] = '?';
+            }
+            if (self::hasColumn('ventas', 'telefono')) {
+                $fields[] = 'telefono';
+                $values[] = $telefono;
+                $placeholders[] = '?';
+            }
+            if (self::hasColumn('ventas', 'direccion')) {
+                $fields[] = 'direccion';
+                $values[] = $direccion;
+                $placeholders[] = '?';
+            }
+
+            $sql = 'INSERT INTO ventas (' . implode(', ', $fields) . ') VALUES (' . implode(', ', $placeholders) . ')';
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($values);
             $id = (int) $pdo->lastInsertId();
 
             $pdo->commit();
@@ -76,6 +118,10 @@ final class Venta
 
     public function sumPendingLiquidation(): float
     {
+        if (!self::hasColumn('ventas', 'liquidado')) {
+            return 0.0;
+        }
+
         $stmt = Database::getInstance()->prepare(
             'SELECT COALESCE(SUM(total), 0) FROM ventas WHERE liquidado = 0'
         );
@@ -85,6 +131,10 @@ final class Venta
 
     public function countPendingLiquidation(): int
     {
+        if (!self::hasColumn('ventas', 'liquidado')) {
+            return 0;
+        }
+
         $stmt = Database::getInstance()->prepare(
             'SELECT COUNT(*) FROM ventas WHERE liquidado = 0'
         );
@@ -94,6 +144,10 @@ final class Venta
 
     public function markAllLiquidated(): void
     {
+        if (!self::hasColumn('ventas', 'liquidado')) {
+            return;
+        }
+
         // A-04: filtrar por fecha actual para no liquidar ventas de días anteriores
         Database::getInstance()->prepare(
             'UPDATE ventas SET liquidado = 1 WHERE liquidado = 0 AND DATE(fecha) = CURDATE()'
@@ -109,6 +163,10 @@ final class Venta
      */
     public function liquidarACaja(): array
     {
+        if (!self::hasColumn('ventas', 'liquidado')) {
+            throw new \RuntimeException('La columna ventas.liquidado no existe. Ejecuta las migraciones pendientes antes de liquidar.');
+        }
+
         $pdo = Database::getInstance();
         $pdo->beginTransaction();
         try {
@@ -161,15 +219,23 @@ final class Venta
 
     public function allToday(): array
     {
+        $hasItemDescripcion = self::hasColumn('ventas', 'item_descripcion');
+        $articuloExpr = $hasItemDescripcion
+            ? 'COALESCE(i.articulo, v.item_descripcion)'
+            : 'COALESCE(i.articulo, \'Sin inventario\')';
+        $categoriaExpr = $hasItemDescripcion
+            ? 'COALESCE(i.categoria, \'Porciones\')'
+            : 'COALESCE(i.categoria, \'Sin categoría\')';
+
         $stmt = Database::getInstance()->prepare(
-            'SELECT v.id, v.orden_id,
-                    COALESCE(i.articulo, v.item_descripcion) AS articulo,
-                    COALESCE(i.categoria, \'Porciones\') AS categoria,
+            "SELECT v.id, v.orden_id,
+                    {$articuloExpr} AS articulo,
+                    {$categoriaExpr} AS categoria,
                     v.cantidad, v.precio_unitario, v.total, v.fecha
              FROM ventas v
              LEFT JOIN inventario i ON i.id = v.inventario_id
              WHERE DATE(v.fecha) = CURDATE()
-             ORDER BY v.orden_id DESC, v.id ASC'
+             ORDER BY v.orden_id DESC, v.id ASC"
         );
         $stmt->execute();
         return $stmt->fetchAll();

@@ -8,6 +8,26 @@ use App\Core\Database;
 
 final class CajaCierre
 {
+    /** @var array<string, bool> */
+    private static array $columnCache = [];
+
+    private static function hasColumn(string $table, string $column): bool
+    {
+        $key = $table . '.' . $column;
+        if (array_key_exists($key, self::$columnCache)) {
+            return self::$columnCache[$key];
+        }
+
+        $stmt = Database::getInstance()->prepare(
+            'SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $stmt->execute([$table, $column]);
+
+        self::$columnCache[$key] = (int) $stmt->fetchColumn() > 0;
+        return self::$columnCache[$key];
+    }
+
     public function existeHoy(): bool
     {
         return $this->getHoy() !== null;
@@ -39,11 +59,13 @@ final class CajaCierre
         $pdo = Database::getInstance();
         $hoy = date('Y-m-d');
 
-        // Ventas liquidadas del día
-        $stmt = $pdo->prepare(
-            'SELECT COALESCE(SUM(total),0) FROM ventas
-             WHERE DATE(fecha) = ? AND liquidado = 1'
-        );
+        // Ventas del día: si existe "liquidado", usar solo liquidadas.
+        // En esquemas antiguos sin esa columna, usar total diario para no romper cierre.
+        $sqlVentas = self::hasColumn('ventas', 'liquidado')
+            ? 'SELECT COALESCE(SUM(total),0) FROM ventas WHERE DATE(fecha) = ? AND liquidado = 1'
+            : 'SELECT COALESCE(SUM(total),0) FROM ventas WHERE DATE(fecha) = ?';
+
+        $stmt = $pdo->prepare($sqlVentas);
         $stmt->execute([$hoy]);
         $ventas = (float) $stmt->fetchColumn();
 

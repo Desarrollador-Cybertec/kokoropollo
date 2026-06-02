@@ -8,6 +8,26 @@ use App\Core\Database;
 
 final class HistorialCaja
 {
+    /** @var array<string, bool> */
+    private static array $columnCache = [];
+
+    private static function hasColumn(string $table, string $column): bool
+    {
+        $key = $table . '.' . $column;
+        if (array_key_exists($key, self::$columnCache)) {
+            return self::$columnCache[$key];
+        }
+
+        $stmt = Database::getInstance()->prepare(
+            'SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $stmt->execute([$table, $column]);
+
+        self::$columnCache[$key] = (int) $stmt->fetchColumn() > 0;
+        return self::$columnCache[$key];
+    }
+
     public function create(string $tipo, float $valor, string $concepto, string $usuario): void
     {
         $stmt = Database::getInstance()->prepare(
@@ -52,6 +72,20 @@ final class HistorialCaja
 
     public function filterUnifiedToday(string $hoy): array
     {
+        $hasItemDescripcion = self::hasColumn('ventas', 'item_descripcion');
+        $hasLiquidado = self::hasColumn('ventas', 'liquidado');
+        $hasTipoPedido = self::hasColumn('ventas', 'tipo_pedido');
+        $hasNombreCliente = self::hasColumn('ventas', 'nombre_cliente');
+        $hasDireccion = self::hasColumn('ventas', 'direccion');
+
+        $conceptoExpr = $hasItemDescripcion
+            ? 'COALESCE(i.articulo, v.item_descripcion)'
+            : 'COALESCE(i.articulo, \'Sin inventario\')';
+        $liquidadoExpr = $hasLiquidado ? 'v.liquidado' : 'NULL';
+        $tipoPedidoExpr = $hasTipoPedido ? 'v.tipo_pedido' : 'NULL';
+        $nombreClienteExpr = $hasNombreCliente ? 'v.nombre_cliente' : 'NULL';
+        $direccionExpr = $hasDireccion ? 'v.direccion' : 'NULL';
+
         $stmt = Database::getInstance()->prepare(
             "SELECT hc.id,
                     hc.tipo,
@@ -74,15 +108,15 @@ final class HistorialCaja
              SELECT v.id,
                     'venta'      AS tipo,
                     v.total      AS valor,
-                    COALESCE(i.articulo, v.item_descripcion) AS concepto,
+                      {$conceptoExpr} AS concepto,
                     v.usuario,
                     v.fecha,
                     'ventas'     AS origen,
                     v.orden_id,
-                    v.liquidado,
-                    v.tipo_pedido,
-                    v.nombre_cliente,
-                    v.direccion
+                      {$liquidadoExpr} AS liquidado,
+                      {$tipoPedidoExpr} AS tipo_pedido,
+                      {$nombreClienteExpr} AS nombre_cliente,
+                      {$direccionExpr} AS direccion
              FROM ventas v
              LEFT JOIN inventario i ON i.id = v.inventario_id
              WHERE DATE(v.fecha) = ?
