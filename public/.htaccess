@@ -16,6 +16,8 @@ RewriteRule ^ index.php [QSA,L]
 
 # Cabeceras de seguridad
 <IfModule mod_headers.c>
+    # Evita que múltiples CSP (vhost + .htaccess) se acumulen por intersección.
+    Header always unset Content-Security-Policy
     Header always set X-Content-Type-Options "nosniff"
     Header always set X-Frame-Options "DENY"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
@@ -23,8 +25,8 @@ RewriteRule ^ index.php [QSA,L]
     Header always set Strict-Transport-Security "max-age=31536000"
     # Permissions Policy
     Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
-    # CSP — incluye cdnjs.cloudflare.com para Font Awesome (CSS + fuentes)
-    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
+    # CSP — compatible con Tailwind CDN, SweetAlert, Font Awesome e inline scripts actuales.
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; style-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com data:; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
     # Eliminar header obsoleto X-XSS-Protection (reemplazado por CSP)
     Header always unset X-XSS-Protection
 </IfModule>
