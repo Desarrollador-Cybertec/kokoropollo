@@ -1,4 +1,5 @@
 Options -Indexes
+DirectorySlash Off
 RewriteEngine On
 
 # C-08: Bloquear acceso directo a archivos y directorios sensibles
