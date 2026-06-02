@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use App\Core\{Request, Response, Session, View};
+use App\Core\{Logger, Request, Response, Session, View};
 use App\Enums\Rol;
 use App\Middleware\AuthMiddleware;
 use App\Models\{Caja, CajaApertura, CajaCierre, Configuracion, CreditoEmpleado, Inventario, Reporte, Venta};
@@ -59,59 +59,89 @@ final class DashboardController
         $reporte = new Reporte();
         $cfg     = new Configuracion();
 
-        // KPIs del día
-        $resumenHoy = $reporte->resumenDia($hoy);
-        $cajaTotal  = (new Caja())->getTotal();
-        $pendiente  = (new Venta())->sumPendingLiquidation();
+        $resumenHoy        = [];
+        $resumenMes        = [];
+        $cajaTotal         = 0.0;
+        $pendiente         = 0.0;
+        $aperturaHoy       = false;
+        $cierreHoy         = false;
+        $resumCreditos     = [];
+        $stockCritico      = 0;
+        $pollosEnCiclo     = 0;
+        $pollosPorCiclo    = 1000;
+        $pctCondimentos    = 0.0;
+        $alertaCondimentos = null;
+        $mesDesde          = date('Y-m-01');
+        $mesHasta          = date('Y-m-d');
+        $ticketDia         = 0.0;
+        $topEmpleadoMes    = null;
+        $topProductoMes    = null;
+        $variacionMes      = null;
 
-        // Estado operativo
-        $aperturaHoy = (new CajaApertura())->existeHoy();
-        $cierreHoy   = (new CajaCierre())->existeHoy();
+        try {
+            // KPIs del día
+            $resumenHoy = $reporte->resumenDia($hoy);
+            $cajaTotal  = (new Caja())->getTotal();
+            $pendiente  = (new Venta())->sumPendingLiquidation();
 
-        // Créditos
-        $resumCreditos = (new CreditoEmpleado())->resumen();
+            // Estado operativo
+            $aperturaHoy = (new CajaApertura())->existeHoy();
+            $cierreHoy   = (new CajaCierre())->existeHoy();
 
-        // Stock crítico
-        $stockCritico = (new Inventario())->countCritico();
+            // Créditos
+            $resumCreditos = (new CreditoEmpleado())->resumen();
 
-        // Condimentos
-        $cuartosTotal   = (new Venta())->sumCuartosPolloVendidos();
-        $cuartosOffset  = (int) $cfg->get('condimentos_cuartos_offset', '0');
-        $pollosPorCiclo = max(1, (int) $cfg->get('condimentos_pollos_por_ciclo', '1000'));
-        $pollosEnCiclo  = (int) floor(max(0, $cuartosTotal - $cuartosOffset) / 4);
-        $pctCondimentos = min(100, round($pollosEnCiclo / $pollosPorCiclo * 100, 1));
-        $alertaCondimentos = match(true) {
-            $pctCondimentos >= 100 => 'agotado',
-            $pctCondimentos >= 80  => 'critica',
-            $pctCondimentos >= 50  => 'preventiva',
-            default                => null,
-        };
+            // Stock crítico
+            $stockCritico = (new Inventario())->countCritico();
 
-        // Ventas del mes
-        [$mesDesde, $mesHasta] = Reporte::mesActual();
-        $resumenMes = $reporte->resumenPeriodo($mesDesde, $mesHasta);
+            // Condimentos
+            $cuartosTotal   = (new Venta())->sumCuartosPolloVendidos();
+            $cuartosOffset  = (int) $cfg->get('condimentos_cuartos_offset', '0');
+            $pollosPorCiclo = max(1, (int) $cfg->get('condimentos_pollos_por_ciclo', '1000'));
+            $pollosEnCiclo  = (int) floor(max(0, $cuartosTotal - $cuartosOffset) / 4);
+            $pctCondimentos = min(100, round($pollosEnCiclo / $pollosPorCiclo * 100, 1));
+            $alertaCondimentos = match(true) {
+                $pctCondimentos >= 100 => 'agotado',
+                $pctCondimentos >= 80  => 'critica',
+                $pctCondimentos >= 50  => 'preventiva',
+                default                => null,
+            };
 
-        // Ticket promedio del día
-        $pedidosHoy      = (int)($resumenHoy['total_pedidos'] ?? 0);
-        $ticketDia       = $pedidosHoy > 0 ? (float)($resumenHoy['total_ventas'] ?? 0) / $pedidosHoy : 0.0;
+            // Ventas del mes
+            [$mesDesde, $mesHasta] = Reporte::mesActual();
+            $resumenMes = $reporte->resumenPeriodo($mesDesde, $mesHasta);
 
-        // Top empleado del mes
-        $rankingMes      = $reporte->ventasPorEmpleado($mesDesde, $mesHasta);
-        $topEmpleadoMes  = !empty($rankingMes) ? $rankingMes[0] : null;
+            // Ticket promedio del día
+            $pedidosHoy = (int)($resumenHoy['total_pedidos'] ?? 0);
+            $ticketDia  = $pedidosHoy > 0
+                ? (float)($resumenHoy['total_ventas'] ?? 0) / $pedidosHoy
+                : 0.0;
 
-        // Top producto del mes
-        $topProductosMes = $reporte->topProductos($mesDesde, $mesHasta, 1);
-        $topProductoMes  = !empty($topProductosMes) ? $topProductosMes[0] : null;
+            // Top empleado del mes
+            $rankingMes = $reporte->ventasPorEmpleado($mesDesde, $mesHasta);
+            $topEmpleadoMes = !empty($rankingMes) ? $rankingMes[0] : null;
 
-        // Variación vs mes anterior
-        $mesAntDesde     = date('Y-m-01', strtotime($mesDesde . ' -1 month'));
-        $mesAntHasta     = date('Y-m-t',  strtotime($mesDesde . ' -1 month'));
-        $resumenMesAnt   = $reporte->resumenPeriodo($mesAntDesde, $mesAntHasta);
-        $ventasMes       = (float)($resumenMes['total_ventas']    ?? 0);
-        $ventasMesAnt    = (float)($resumenMesAnt['total_ventas'] ?? 0);
-        $variacionMes    = $ventasMesAnt > 0
-            ? round(($ventasMes - $ventasMesAnt) / $ventasMesAnt * 100, 1)
-            : null;
+            // Top producto del mes
+            $topProductosMes = $reporte->topProductos($mesDesde, $mesHasta, 1);
+            $topProductoMes  = !empty($topProductosMes) ? $topProductosMes[0] : null;
+
+            // Variación vs mes anterior
+            $mesAntDesde   = date('Y-m-01', strtotime($mesDesde . ' -1 month'));
+            $mesAntHasta   = date('Y-m-t', strtotime($mesDesde . ' -1 month'));
+            $resumenMesAnt = $reporte->resumenPeriodo($mesAntDesde, $mesAntHasta);
+            $ventasMes     = (float)($resumenMes['total_ventas'] ?? 0);
+            $ventasMesAnt  = (float)($resumenMesAnt['total_ventas'] ?? 0);
+            $variacionMes  = $ventasMesAnt > 0
+                ? round(($ventasMes - $ventasMesAnt) / $ventasMesAnt * 100, 1)
+                : null;
+        } catch (\Throwable $e) {
+            Logger::getInstance()->error('Dashboard jefe con datos parciales', [
+                'error' => $e->getMessage(),
+                'file'  => $e->getFile(),
+                'line'  => $e->getLine(),
+            ]);
+            Session::flash('error', 'No se pudo cargar todo el resumen. Verifica migraciones pendientes en la base de datos.');
+        }
 
         View::render('dashboard/jefe', compact(
             'resumenHoy', 'cajaTotal', 'pendiente',

@@ -55,6 +55,23 @@ final class Router
             Response::notFound();
         }
 
-        $controller->$action($request);
+        try {
+            $controller->$action($request);
+        } catch (\Throwable $e) {
+            Logger::getInstance()->error('Error no controlado en ruta', [
+                'method'    => $method,
+                'path'      => $path,
+                'controller'=> $controllerClass,
+                'action'    => $action,
+                'error'     => $e->getMessage(),
+                'file'      => $e->getFile(),
+                'line'      => $e->getLine(),
+                'trace'     => $e->getTraceAsString(),
+            ]);
+
+            http_response_code(500);
+            echo 'Error interno del servidor. Intente más tarde.';
+            exit;
+        }
     }
 }

@@ -8,12 +8,40 @@ use App\Core\Database;
 
 final class Reporte
 {
+    /** @var array<string, bool> */
+    private static array $columnCache = [];
+
+    private static function hasColumn(string $table, string $column): bool
+    {
+        $key = $table . '.' . $column;
+        if (array_key_exists($key, self::$columnCache)) {
+            return self::$columnCache[$key];
+        }
+
+        $stmt = Database::getInstance()->prepare(
+            'SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+        );
+        $stmt->execute([$table, $column]);
+
+        self::$columnCache[$key] = (int) $stmt->fetchColumn() > 0;
+        return self::$columnCache[$key];
+    }
+
     // ── REPORTE DIARIO ─────────────────────────────────────────
 
     /** Resumen financiero completo de un día */
     public function resumenDia(string $fecha): array
     {
         $pdo = Database::getInstance();
+        $hasTipoPedido = self::hasColumn('ventas', 'tipo_pedido');
+
+        $pedidosLlevarExpr = $hasTipoPedido
+            ? "COUNT(DISTINCT CASE WHEN v.tipo_pedido='llevar' THEN v.orden_id END)"
+            : '0';
+        $pedidosLocalExpr = $hasTipoPedido
+            ? "COUNT(DISTINCT CASE WHEN v.tipo_pedido='local'  THEN v.orden_id END)"
+            : '0';
 
         // Ventas: total, pedidos, por tipo
         $stmt = $pdo->prepare(
@@ -21,8 +49,8 @@ final class Reporte
                 COALESCE(SUM(v.total), 0)                                    AS total_ventas,
                 COALESCE(SUM(v.cantidad * COALESCE(i.valor, 0)), 0)          AS costo_ventas,
                 COUNT(DISTINCT v.orden_id)                                   AS total_pedidos,
-                COUNT(DISTINCT CASE WHEN v.tipo_pedido='llevar' THEN v.orden_id END) AS pedidos_llevar,
-                COUNT(DISTINCT CASE WHEN v.tipo_pedido='local'  THEN v.orden_id END) AS pedidos_local
+                {$pedidosLlevarExpr}                                          AS pedidos_llevar,
+                {$pedidosLocalExpr}                                           AS pedidos_local
              FROM ventas v
              LEFT JOIN inventario i ON i.id = v.inventario_id
              WHERE DATE(v.fecha) = ?"
@@ -101,8 +129,16 @@ final class Reporte
     /** Top 10 productos del día */
     public function topProductosDia(string $fecha): array
     {
+        $hasItemDescripcion = self::hasColumn('ventas', 'item_descripcion');
+        $articuloExpr = $hasItemDescripcion
+            ? "COALESCE(i.articulo, v.item_descripcion, 'Porción')"
+            : "COALESCE(i.articulo, 'Sin inventario')";
+        $groupByExpr = $hasItemDescripcion
+            ? 'v.inventario_id, v.item_descripcion'
+            : 'v.inventario_id';
+
         $stmt = Database::getInstance()->prepare(
-            "SELECT COALESCE(i.articulo, v.item_descripcion, 'Porción') AS articulo,
+            "SELECT {$articuloExpr} AS articulo,
                     COALESCE(i.categoria, 'Porciones') AS categoria,
                     SUM(v.cantidad)                         AS uds_vendidas,
                     SUM(v.total)                            AS ingresos,
@@ -110,7 +146,7 @@ final class Reporte
              FROM ventas v
              LEFT JOIN inventario i ON i.id = v.inventario_id
              WHERE DATE(v.fecha) = ?
-             GROUP BY v.inventario_id, v.item_descripcion
+             GROUP BY {$groupByExpr}
              ORDER BY ingresos DESC
              LIMIT 10"
         );
@@ -197,8 +233,16 @@ final class Reporte
 
     public function topProductos(string $desde, string $hasta, int $limite = 15): array
     {
+        $hasItemDescripcion = self::hasColumn('ventas', 'item_descripcion');
+        $articuloExpr = $hasItemDescripcion
+            ? "COALESCE(i.articulo, v.item_descripcion, 'Porción')"
+            : "COALESCE(i.articulo, 'Sin inventario')";
+        $groupByExpr = $hasItemDescripcion
+            ? 'v.inventario_id, v.item_descripcion'
+            : 'v.inventario_id';
+
         $stmt = Database::getInstance()->prepare(
-            "SELECT COALESCE(i.articulo, v.item_descripcion, 'Porción') AS articulo,
+            "SELECT {$articuloExpr} AS articulo,
                     COALESCE(i.categoria, 'Porciones')                  AS categoria,
                     SUM(v.cantidad)                                     AS uds_vendidas,
                     SUM(v.total)                                        AS ingresos,
@@ -207,7 +251,7 @@ final class Reporte
              FROM ventas v
              LEFT JOIN inventario i ON i.id = v.inventario_id
              WHERE v.fecha BETWEEN ? AND ?
-             GROUP BY v.inventario_id, v.item_descripcion
+             GROUP BY {$groupByExpr}
              ORDER BY uds_vendidas DESC
              LIMIT ?"
         );
@@ -220,14 +264,22 @@ final class Reporte
     /** Ranking de empleados en un rango de fechas */
     public function ventasPorEmpleado(string $desde, string $hasta): array
     {
+        $hasTipoPedido = self::hasColumn('ventas', 'tipo_pedido');
+        $pedidosLocalExpr = $hasTipoPedido
+            ? "COUNT(DISTINCT CASE WHEN v.tipo_pedido='local'  THEN v.orden_id END)"
+            : '0';
+        $pedidosLlevarExpr = $hasTipoPedido
+            ? "COUNT(DISTINCT CASE WHEN v.tipo_pedido='llevar' THEN v.orden_id END)"
+            : '0';
+
         $stmt = Database::getInstance()->prepare(
             "SELECT
                 v.usuario,
                 COUNT(DISTINCT v.orden_id)                                       AS pedidos,
                 COALESCE(SUM(v.total), 0)                                        AS ventas,
                 COALESCE(SUM(v.total) / NULLIF(COUNT(DISTINCT v.orden_id), 0), 0) AS ticket_promedio,
-                COUNT(DISTINCT CASE WHEN v.tipo_pedido='local'  THEN v.orden_id END) AS pedidos_local,
-                COUNT(DISTINCT CASE WHEN v.tipo_pedido='llevar' THEN v.orden_id END) AS pedidos_llevar,
+                {$pedidosLocalExpr}                                               AS pedidos_local,
+                {$pedidosLlevarExpr}                                              AS pedidos_llevar,
                 COUNT(DISTINCT DATE(v.fecha))                                    AS dias_activo
              FROM ventas v
              WHERE v.fecha BETWEEN ? AND ?
