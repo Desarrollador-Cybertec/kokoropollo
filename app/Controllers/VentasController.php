@@ -210,6 +210,9 @@ final class VentasController
             ]);
         } catch (\RuntimeException $e) {
             Response::json(['status' => 'error', 'mensaje' => $e->getMessage()], code: 422);
+        } catch (\Throwable $e) {
+            Logger::getInstance()->error('Error inesperado al registrar venta', ['error' => $e->getMessage()]);
+            Response::json(['status' => 'error', 'mensaje' => 'Error al registrar la venta. Intente de nuevo.'], code: 500);
         }
     }
 
@@ -255,6 +258,9 @@ final class VentasController
             ]);
         } catch (\RuntimeException $e) {
             Response::json(['status' => 'error', 'mensaje' => $e->getMessage()], code: 422);
+        } catch (\Throwable $e) {
+            Logger::getInstance()->error('Error inesperado al liquidar ventas', ['error' => $e->getMessage()]);
+            Response::json(['status' => 'error', 'mensaje' => 'Error al liquidar. Intente de nuevo.'], code: 500);
         }
     }
 

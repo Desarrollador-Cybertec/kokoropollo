@@ -82,21 +82,26 @@ final class CajaController
             Response::redirect('/caja');
         }
 
-        $nuevoTotal = $tipo === 'ingreso' ? $total + $valor : $total - $valor;
-        $caja->updateTotal($nuevoTotal);
-        (new HistorialCaja())->create($tipo, $valor, $concepto, $usuario);
-        (new Auditoria())->registrar($usuario, 'caja', 'ajuste',
-            ($tipo === 'ingreso' ? 'Ingreso' : 'Retiro') . ' $' . number_format($valor, 0, ',', '.') .
-            ($concepto !== '' ? " — {$concepto}" : '')
-        );
+        try {
+            $nuevoTotal = $tipo === 'ingreso' ? $total + $valor : $total - $valor;
+            $caja->updateTotal($nuevoTotal);
+            (new HistorialCaja())->create($tipo, $valor, $concepto, $usuario);
+            (new Auditoria())->registrar($usuario, 'caja', 'ajuste',
+                ($tipo === 'ingreso' ? 'Ingreso' : 'Retiro') . ' $' . number_format($valor, 0, ',', '.') .
+                ($concepto !== '' ? " — {$concepto}" : '')
+            );
 
-        Logger::getInstance()->info("Movimiento de caja: {$tipo}", [
-            'valor'   => $valor,
-            'usuario' => $usuario,
-        ]);
+            Logger::getInstance()->info("Movimiento de caja: {$tipo}", [
+                'valor'   => $valor,
+                'usuario' => $usuario,
+            ]);
 
-        $label = $tipo === 'ingreso' ? 'Ingreso' : 'Retiro';
-        Session::flash('exito', "{$label} de \${$this->fmt($valor)} registrado.");
+            $label = $tipo === 'ingreso' ? 'Ingreso' : 'Retiro';
+            Session::flash('exito', "{$label} de \${$this->fmt($valor)} registrado.");
+        } catch (\Throwable $e) {
+            Logger::getInstance()->error('Error al procesar movimiento de caja', ['error' => $e->getMessage()]);
+            Session::flash('error', 'Error al procesar el movimiento. Intente de nuevo.');
+        }
         Response::redirect('/caja');
     }
 
@@ -166,18 +171,21 @@ final class CajaController
         try {
             // C-04: ajustar() es atómico con FOR UPDATE — previene race conditions
             $nuevoTotal = (new Caja())->ajustar($tipo, $valor);
+
+            (new HistorialCaja())->create($tipo, $valor, $concepto ?: ($tipo === 'ingreso' ? 'Ingreso manual' : 'Retiro manual'), $usuario);
+
+            Logger::getInstance()->info("Ajuste de caja: {$tipo}", [
+                'valor'   => $valor,
+                'usuario' => $usuario,
+            ]);
+
+            Response::json(['status' => 'ok', 'nuevoCajaTotal' => $nuevoTotal, 'tipo' => $tipo, 'valor' => $valor]);
         } catch (\RuntimeException $e) {
             Response::json(['status' => 'error', 'mensaje' => $e->getMessage()], code: 422);
+        } catch (\Throwable $e) {
+            Logger::getInstance()->error('Error inesperado en ajuste de caja', ['error' => $e->getMessage()]);
+            Response::json(['status' => 'error', 'mensaje' => 'Error al procesar el ajuste. Intente de nuevo.'], code: 500);
         }
-
-        (new HistorialCaja())->create($tipo, $valor, $concepto ?: ($tipo === 'ingreso' ? 'Ingreso manual' : 'Retiro manual'), $usuario);
-
-        Logger::getInstance()->info("Ajuste de caja: {$tipo}", [
-            'valor'   => $valor,
-            'usuario' => $usuario,
-        ]);
-
-        Response::json(['status' => 'ok', 'nuevoCajaTotal' => $nuevoTotal, 'tipo' => $tipo, 'valor' => $valor]);
     }
 
     private function fmt(float $valor): string

@@ -70,7 +70,15 @@ final class Router
             ]);
 
             http_response_code(500);
-            echo 'Error interno del servidor. Intente más tarde.';
+            $isJson = str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json')
+                   || str_contains($_SERVER['CONTENT_TYPE'] ?? '', 'application/json')
+                   || isset($_SERVER['HTTP_X_CSRF_TOKEN']);
+            if ($isJson) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['status' => 'error', 'mensaje' => 'Error interno del servidor. Intente más tarde.']);
+            } else {
+                echo 'Error interno del servidor. Intente más tarde.';
+            }
             exit;
         }
     }

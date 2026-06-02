@@ -50,18 +50,23 @@ final class UsuariosController
             Response::json(['status' => 'error', 'mensaje' => 'La contraseña debe tener al menos 8 caracteres.']);
         }
 
-        $ok = (new Usuario())->create($nombre, $usuario, $clave, $rol);
-        if ($ok) {
-            (new Auditoria())->registrar(
-                Session::get('usuario', ''), 'usuarios', 'crear',
-                "Usuario creado: {$usuario} (Rol: {$rol->value})"
+        try {
+            $ok = (new Usuario())->create($nombre, $usuario, $clave, $rol);
+            if ($ok) {
+                (new Auditoria())->registrar(
+                    Session::get('usuario', ''), 'usuarios', 'crear',
+                    "Usuario creado: {$usuario} (Rol: {$rol->value})"
+                );
+            }
+            Response::json(
+                $ok
+                    ? ['status' => 'ok',    'mensaje' => 'Usuario creado correctamente.']
+                    : ['status' => 'error', 'mensaje' => 'El nombre de usuario ya existe o hubo un error.']
             );
+        } catch (\Throwable $e) {
+            Logger::getInstance()->error('Error al crear usuario', ['error' => $e->getMessage()]);
+            Response::json(['status' => 'error', 'mensaje' => 'Error al crear el usuario. Intente de nuevo.'], 500);
         }
-        Response::json(
-            $ok
-                ? ['status' => 'ok',    'mensaje' => 'Usuario creado correctamente.']
-                : ['status' => 'error', 'mensaje' => 'Error al crear el usuario.']
-        );
     }
 
     public function update(Request $request): void
@@ -89,18 +94,23 @@ final class UsuariosController
             Response::json(['status' => 'error', 'mensaje' => 'La contraseña debe tener al menos 8 caracteres.']);
         }
 
-        $ok = (new Usuario())->update($id, $nombre, $usuario, $rol, ($clave !== '' ? $clave : null));
-        if ($ok) {
-            (new Auditoria())->registrar(
-                Session::get('usuario', ''), 'usuarios', 'editar',
-                "Usuario editado: {$usuario} (Rol: {$rol->value})"
+        try {
+            $ok = (new Usuario())->update($id, $nombre, $usuario, $rol, ($clave !== '' ? $clave : null));
+            if ($ok) {
+                (new Auditoria())->registrar(
+                    Session::get('usuario', ''), 'usuarios', 'editar',
+                    "Usuario editado: {$usuario} (Rol: {$rol->value})"
+                );
+            }
+            Response::json(
+                $ok
+                    ? ['status' => 'ok',    'mensaje' => 'Usuario actualizado correctamente.']
+                    : ['status' => 'error', 'mensaje' => 'El nombre de usuario ya existe o hubo un error.']
             );
+        } catch (\Throwable $e) {
+            Logger::getInstance()->error('Error al actualizar usuario', ['error' => $e->getMessage(), 'id' => $id]);
+            Response::json(['status' => 'error', 'mensaje' => 'Error al actualizar el usuario. Intente de nuevo.'], 500);
         }
-        Response::json(
-            $ok
-                ? ['status' => 'ok',    'mensaje' => 'Usuario actualizado correctamente.']
-                : ['status' => 'error', 'mensaje' => 'Error al actualizar el usuario.']
-        );
     }
 
     public function destroy(Request $request): void
@@ -119,20 +129,24 @@ final class UsuariosController
             Response::json(['status' => 'error', 'mensaje' => 'ID inválido.']);
         }
 
-        $u  = (new Usuario())->find($id);
-        $ok = (new Usuario())->delete($id);
-        Logger::getInstance()->info('Usuario eliminado', ['id' => $id, 'por' => Session::get('usuario')]);
-        if ($ok && $u) {
-            (new Auditoria())->registrar(
-                Session::get('usuario', ''), 'usuarios', 'eliminar',
-                "Usuario eliminado: {$u['usuario']}"
+        try {
+            $u  = (new Usuario())->find($id);
+            $ok = (new Usuario())->delete($id);
+            Logger::getInstance()->info('Usuario eliminado', ['id' => $id, 'por' => Session::get('usuario')]);
+            if ($ok && $u) {
+                (new Auditoria())->registrar(
+                    Session::get('usuario', ''), 'usuarios', 'eliminar',
+                    "Usuario eliminado: {$u['usuario']}"
+                );
+            }
+            Response::json(
+                $ok
+                    ? ['status' => 'ok',    'mensaje' => 'Usuario eliminado correctamente.']
+                    : ['status' => 'error', 'mensaje' => 'Error al eliminar el usuario.']
             );
+        } catch (\Throwable $e) {
+            Logger::getInstance()->error('Error al eliminar usuario', ['error' => $e->getMessage(), 'id' => $id]);
+            Response::json(['status' => 'error', 'mensaje' => 'Error al eliminar el usuario. Intente de nuevo.'], 500);
         }
-
-        Response::json(
-            $ok
-                ? ['status' => 'ok',    'mensaje' => 'Usuario eliminado correctamente.']
-                : ['status' => 'error', 'mensaje' => 'Error al eliminar el usuario.']
-        );
     }
 }

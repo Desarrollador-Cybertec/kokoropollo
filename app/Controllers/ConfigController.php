@@ -76,28 +76,36 @@ final class ConfigController
             $datos["porcion_{$k}_precio"] = (string) max(0, (float) $request->post("porcion_{$k}_precio", '0'));
         }
 
-        $cfg->setMany($datos);
+        try {
+            $cfg->setMany($datos);
 
-        // Registrar en auditoría los precios que cambiaron
-        $usuario   = Session::get('usuario', '');
-        $auditoria = new Auditoria();
-        $etiquetas = [
-            'precio_asado_cuarto' => '¼ Asado',
-            'precio_asado_medio'  => '½ Asado',
-            'precio_asado_entero' => 'Entero Asado',
-        ];
-        foreach (self::PRECIOS_KEYS as $clave) {
-            $viejo = (float) ($oldPrecios[$clave] ?? 0);
-            $nuevo = (float) $datos[$clave];
-            if (abs($viejo - $nuevo) > 0.01) {
-                $label = $etiquetas[$clave] ?? $clave;
-                $auditoria->registrar($usuario, 'config', 'editar',
-                    "Precio {$label}: $" . number_format($viejo, 0, ',', '.') .
-                    " → $" . number_format($nuevo, 0, ',', '.')
-                );
+            // Registrar en auditoría los precios que cambiaron
+            $usuario   = Session::get('usuario', '');
+            $auditoria = new Auditoria();
+            $etiquetas = [
+                'precio_asado_cuarto' => '¼ Asado',
+                'precio_asado_medio'  => '½ Asado',
+                'precio_asado_entero' => 'Entero Asado',
+            ];
+            foreach (self::PRECIOS_KEYS as $clave) {
+                $viejo = (float) ($oldPrecios[$clave] ?? 0);
+                $nuevo = (float) $datos[$clave];
+                if (abs($viejo - $nuevo) > 0.01) {
+                    $label = $etiquetas[$clave] ?? $clave;
+                    $auditoria->registrar($usuario, 'config', 'editar',
+                        "Precio {$label}: $" . number_format($viejo, 0, ',', '.') .
+                        " → $" . number_format($nuevo, 0, ',', '.')
+                    );
+                }
             }
+            Session::flash('exito', 'Configuración actualizada correctamente.');
+        } catch (\Throwable $e) {
+            \App\Core\Logger::getInstance()->error('Error al guardar configuración', [
+                'error' => $e->getMessage(),
+                'usuario' => Session::get('usuario', ''),
+            ]);
+            Session::flash('error', 'Error al guardar la configuración. Intente de nuevo.');
         }
-        Session::flash('exito', 'Configuración actualizada correctamente.');
         Response::redirect('/config');
     }
 
@@ -130,11 +138,14 @@ final class ConfigController
             Response::redirect('/config');
         }
 
-        // El nuevo offset = cuartos vendidos actualmente → ciclo empieza en 0
-        $cuartosActuales = (new Venta())->sumCuartosPolloVendidos();
-        (new Configuracion())->setMany(['condimentos_cuartos_offset' => (string) $cuartosActuales]);
-
-        Session::flash('exito', 'Ciclo de condimentos reiniciado. Contador en 0 pollos.');
+        try {
+            $cuartosActuales = (new Venta())->sumCuartosPolloVendidos();
+            (new Configuracion())->setMany(['condimentos_cuartos_offset' => (string) $cuartosActuales]);
+            Session::flash('exito', 'Ciclo de condimentos reiniciado. Contador en 0 pollos.');
+        } catch (\Throwable $e) {
+            \App\Core\Logger::getInstance()->error('Error al reiniciar ciclo condimentos', ['error' => $e->getMessage()]);
+            Session::flash('error', 'Error al reiniciar el ciclo. Intente de nuevo.');
+        }
         Response::redirect('/config');
     }
 }

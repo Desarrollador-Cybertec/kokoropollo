@@ -51,12 +51,17 @@ final class InventarioController
             Response::redirect('/inventario');
         }
 
-        (new Inventario())->create($articulo, $categoria, $cantidad, $valor);
-        (new Auditoria())->registrar(
-            Session::get('usuario', ''), 'inventario', 'crear',
-            "Artículo creado: {$articulo} ({$categoria})"
-        );
-        Session::flash('exito', "Artículo \"{$articulo}\" agregado correctamente.");
+        try {
+            (new Inventario())->create($articulo, $categoria, $cantidad, $valor);
+            (new Auditoria())->registrar(
+                Session::get('usuario', ''), 'inventario', 'crear',
+                "Artículo creado: {$articulo} ({$categoria})"
+            );
+            Session::flash('exito', "Artículo \"{$articulo}\" agregado correctamente.");
+        } catch (\Throwable $e) {
+            \App\Core\Logger::getInstance()->error('Error al crear artículo de inventario', ['error' => $e->getMessage()]);
+            Session::flash('error', 'Error al guardar el artículo. Intente de nuevo.');
+        }
         Response::redirect('/inventario');
     }
 
@@ -81,12 +86,19 @@ final class InventarioController
         }
 
         if ($id > 0 && $articulo !== '' && in_array($categoria, Inventario::categorias(), strict: true)) {
-            (new Inventario())->update($id, $articulo, $categoria, $cantidad, $valor);
-            (new Auditoria())->registrar(
-                Session::get('usuario', ''), 'inventario', 'editar',
-                "Artículo editado: {$articulo} (id={$id})"
-            );
-            Session::flash('exito', "Artículo \"{$articulo}\" actualizado correctamente.");
+            try {
+                (new Inventario())->update($id, $articulo, $categoria, $cantidad, $valor);
+                (new Auditoria())->registrar(
+                    Session::get('usuario', ''), 'inventario', 'editar',
+                    "Artículo editado: {$articulo} (id={$id})"
+                );
+                Session::flash('exito', "Artículo \"{$articulo}\" actualizado correctamente.");
+            } catch (\Throwable $e) {
+                \App\Core\Logger::getInstance()->error('Error al actualizar artículo de inventario', ['error' => $e->getMessage(), 'id' => $id]);
+                Session::flash('error', 'Error al actualizar el artículo. Intente de nuevo.');
+            }
+        } else {
+            Session::flash('error', 'Datos inválidos. Verifique el formulario.');
         }
 
         Response::redirect('/inventario');
