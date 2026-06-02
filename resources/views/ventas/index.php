@@ -472,7 +472,7 @@ body { background: linear-gradient(135deg,#3b0a0a 0%,#4a0e0e 40%,#2b1a1a 100%); 
             <div id="alertaCaja" class="hidden text-center font-bold px-2 py-1.5 rounded-lg text-xs mt-2"></div>
         </div>
 
-        <?php if ($esAdmin && !empty($empleadosCredito)): ?>
+        <?php if ($esAdmin): ?>
         <!-- ══ PANEL PRÉSTAMOS A EMPLEADOS ══════════════════════ -->
         <div class="rounded-2xl shadow-xl overflow-hidden" style="background-color:var(--rojo-card);">
             <div class="px-4 py-3 flex justify-between items-center" style="background-color:var(--rojo-mid);">
@@ -498,9 +498,13 @@ body { background: linear-gradient(135deg,#3b0a0a 0%,#4a0e0e 40%,#2b1a1a 100%); 
                         <label class="text-xs font-bold mb-1 block" style="color:#9ca3af;">Empleado</label>
                         <select id="creditoEmpleado" class="caja-input text-sm w-full">
                             <option value="">— Seleccionar —</option>
+                            <?php if (empty($empleadosCredito)): ?>
+                            <option value="" disabled>Sin empleados registrados</option>
+                        <?php else: ?>
                             <?php foreach ($empleadosCredito as $emp): ?>
                             <option value="<?= (int)$emp['id'] ?>"><?= View::escape($emp['nombre']) ?></option>
                             <?php endforeach; ?>
+                        <?php endif; ?>
                         </select>
                     </div>
                     <div>
@@ -602,7 +606,7 @@ const CAJA_MOV_INICIAL = <?= json_encode($cajaMovimientos, JSON_UNESCAPED_UNICOD
 const ES_ADMIN      = <?= $esAdmin ? 'true' : 'false' ?>;
 </script>
 <script src="/js/ventas.js"></script>
-<?php if ($esAdmin && !empty($empleadosCredito)): ?>
+<?php if ($esAdmin): ?>
 <script>
 /* ── Panel de préstamos a empleados ── */
 function toggleFormCredito() {
