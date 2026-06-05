@@ -13,6 +13,8 @@ $dashboardUrl        = isset($dashboardUrl)        ? (string) $dashboardUrl     
 $movimientosHoy      = (isset($movimientosHoy)  && is_array($movimientosHoy))  ? $movimientosHoy  : [];
 $ventasPendientesHoy = isset($ventasPendientesHoy) ? (float)  $ventasPendientesHoy : 0.0;
 $esAdmin             = (bool) ($esAdmin             ?? false);
+$puedeCierre        = (bool) ($puedeCierre        ?? false);
+$puedeAnadirRetirar = (bool) ($puedeAnadirRetirar ?? false);
 $aperturaHoy         = (isset($aperturaHoy)     && is_array($aperturaHoy))     ? $aperturaHoy     : null;
 $cierreHoy           = (isset($cierreHoy)       && is_array($cierreHoy))       ? $cierreHoy       : null;
 $precalc             = (isset($precalc)         && is_array($precalc))         ? $precalc         : [];
@@ -47,12 +49,10 @@ require dirname(__DIR__) . '/partials/head.php';
         </div>
     </div>
 
-    <?php if ($esAdmin): ?>
+    <?php if ($esAdmin && !$aperturaHoy): ?>
     <!-- ══════════════════════════════════════════════════════════
-         APERTURA — integrada en caja
+         APERTURA — solo Admin cuando no existe apertura del día
     ══════════════════════════════════════════════════════════ -->
-
-    <?php if (!$aperturaHoy): ?>
     <!-- Sin apertura: formulario inline -->
     <div class="rounded-2xl shadow-xl p-6 mb-4" style="background-color:var(--rojo-card); border:2px solid #d97706;">
         <h2 class="text-xl font-black mb-1" style="color:#fbbf24;">🔓 Registrar apertura de caja</h2>
@@ -105,10 +105,10 @@ require dirname(__DIR__) . '/partials/head.php';
             </button>
         </form>
     </div>
+    <?php endif; /* esAdmin && !aperturaHoy */ ?>
 
-    <?php else: /* aperturaHoy existe */ ?>
-
-    <!-- Banner apertura registrada -->
+    <?php if ($aperturaHoy): ?>
+    <!-- Banner apertura registrada (visible para todos los roles) -->
     <div class="rounded-xl px-5 py-3 mb-3 flex items-center justify-between gap-4 flex-wrap"
          style="background-color:#132a1e; border:1px solid #1d6b3a;">
         <div>
@@ -122,9 +122,10 @@ require dirname(__DIR__) . '/partials/head.php';
     </div>
 
     <!-- ══════════════════════════════════════════════════════════
-         CIERRE — integrado en caja
+         CIERRE — integrado en caja (todos los roles autenticados)
     ══════════════════════════════════════════════════════════ -->
 
+    <?php if ($puedeCierre): ?>
     <?php if ($cierreHoy): ?>
     <!-- Cierre ya registrado: resumen completo -->
     <?php
@@ -282,8 +283,8 @@ require dirname(__DIR__) . '/partials/head.php';
     </div>
 
     <?php endif; /* cierreHoy */ ?>
+    <?php endif; /* puedeCierre */ ?>
     <?php endif; /* aperturaHoy */ ?>
-    <?php endif; /* esAdmin */ ?>
 
     <!-- Ventas pendientes de liquidar -->
     <?php if ($ventasPendientesHoy > 0): ?>
@@ -338,7 +339,8 @@ require dirname(__DIR__) . '/partials/head.php';
         </div>
     </div>
 
-    <!-- Añadir / Retirar -->
+    <!-- Añadir / Retirar (solo Admin y Jefe) -->
+    <?php if ($puedeAnadirRetirar): ?>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
         <div class="rounded-2xl p-6 shadow-xl" style="background-color:var(--rojo-card);">
             <h2 class="text-xl font-black tracking-wide mb-5 text-center uppercase text-green-400">➕ Añadir Dinero</h2>
@@ -369,6 +371,7 @@ require dirname(__DIR__) . '/partials/head.php';
             </form>
         </div>
     </div>
+    <?php endif; /* puedeAnadirRetirar */ ?>
 
     <!-- Actividad de hoy -->
     <!-- Actividad de hoy -->

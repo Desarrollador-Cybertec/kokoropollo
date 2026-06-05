@@ -32,9 +32,10 @@ $router->get('/dashboard/jefe',     [DashboardController::class, 'indexJefe']);
 
 // ── Inventario ─────────────────────────────────────────────
 $router->get('/inventario',         [InventarioController::class, 'index']);
-$router->post('/inventario/store',  [InventarioController::class, 'store']);
-$router->post('/inventario/update', [InventarioController::class, 'update']);
-$router->post('/inventario/delete', [InventarioController::class, 'destroy']);
+$router->post('/inventario/store',      [InventarioController::class, 'store']);
+$router->post('/inventario/update',     [InventarioController::class, 'update']);
+$router->post('/inventario/movimiento', [InventarioController::class, 'movimiento']);
+$router->post('/inventario/delete',     [InventarioController::class, 'destroy']);
 
 // ── Caja ───────────────────────────────────────────────────
 $router->get('/caja',               [CajaController::class, 'index']);

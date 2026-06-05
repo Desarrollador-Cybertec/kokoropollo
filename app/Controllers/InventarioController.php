@@ -7,7 +7,7 @@ namespace App\Controllers;
 use App\Core\{Csrf, Request, Response, Session, View};
 use App\Enums\Rol;
 use App\Middleware\AuthMiddleware;
-use App\Models\{Auditoria, Inventario};
+use App\Models\{Auditoria, Inventario, InventarioMovimiento};
 
 final class InventarioController
 {
@@ -24,13 +24,21 @@ final class InventarioController
 
         $rol          = Rol::tryFrom(Session::get('rol') ?? '');
         $dashboardUrl = $rol?->dashboard() ?? '/dashboard';
+        $soloLectura  = ($rol === Rol::Empleado);
+        $movimientos  = (new InventarioMovimiento())->todosAgrupados();
 
-        View::render('inventario/index', compact('items', 'editarItem', 'busqueda', 'dashboardUrl'));
+        View::render('inventario/index', compact('items', 'editarItem', 'busqueda', 'dashboardUrl', 'soloLectura', 'movimientos'));
     }
 
     public function store(Request $request): void
     {
         AuthMiddleware::handle();
+
+        $rol = Rol::tryFrom(Session::get('rol') ?? '');
+        if ($rol === Rol::Empleado) {
+            Session::flash('error', 'No tiene permiso para modificar el inventario.');
+            Response::redirect('/inventario');
+        }
 
         if (!Csrf::validateToken($request->csrfToken())) {
             Response::redirect('/inventario');
@@ -69,6 +77,12 @@ final class InventarioController
     {
         AuthMiddleware::handle();
 
+        $rol = Rol::tryFrom(Session::get('rol') ?? '');
+        if ($rol === Rol::Empleado) {
+            Session::flash('error', 'No tiene permiso para modificar el inventario.');
+            Response::redirect('/inventario');
+        }
+
         if (!Csrf::validateToken($request->csrfToken())) {
             Response::redirect('/inventario');
         }
@@ -104,9 +118,67 @@ final class InventarioController
         Response::redirect('/inventario');
     }
 
+    public function movimiento(Request $request): void
+    {
+        AuthMiddleware::handle();
+
+        $rol = Rol::tryFrom(Session::get('rol') ?? '');
+        if ($rol === Rol::Empleado) {
+            Session::flash('error', 'No tiene permiso para modificar el inventario.');
+            Response::redirect('/inventario');
+        }
+
+        if (!Csrf::validateToken($request->csrfToken())) {
+            Response::redirect('/inventario');
+        }
+
+        $id       = (int) $request->post('id', 0);
+        $tipo     = $request->post('tipo', '');
+        $cantidad = max(1, (int) $request->post('cantidad', 1));
+
+        if ($id <= 0 || !in_array($tipo, ['entrada', 'salida'], strict: true)) {
+            Session::flash('error', 'Datos inválidos.');
+            Response::redirect('/inventario');
+        }
+
+        $item = (new Inventario())->find($id);
+        if (!$item) {
+            Session::flash('error', 'Artículo no encontrado.');
+            Response::redirect('/inventario');
+        }
+
+        // Pollo Crudo se almacena en cuartos; el usuario ingresa pollos enteros
+        $cantidadInterna = ($item['categoria'] === 'Pollo Crudo') ? $cantidad * 4 : $cantidad;
+        $delta           = $tipo === 'entrada' ? $cantidadInterna : -$cantidadInterna;
+        $usuario         = Session::get('usuario', '');
+
+        try {
+            (new Inventario())->ajustar($id, $delta);
+            // Se guarda en unidades visibles (pollos para Pollo Crudo, uds para el resto)
+            (new InventarioMovimiento())->registrar($id, $tipo, $cantidad, $usuario);
+            (new Auditoria())->registrar(
+                $usuario, 'inventario', $tipo,
+                ucfirst($tipo) . " de {$cantidad} en: {$item['articulo']}"
+            );
+            $label = $tipo === 'entrada' ? 'Entrada' : 'Salida';
+            Session::flash('exito', "{$label} de {$cantidad} registrada en \"{$item['articulo']}\".");
+        } catch (\Throwable $e) {
+            \App\Core\Logger::getInstance()->error('Error al registrar movimiento', ['error' => $e->getMessage()]);
+            Session::flash('error', 'Error al registrar el movimiento. Intente de nuevo.');
+        }
+
+        Response::redirect('/inventario');
+    }
+
     public function destroy(Request $request): void
     {
         AuthMiddleware::handle();
+
+        $rol = Rol::tryFrom(Session::get('rol') ?? '');
+        if ($rol === Rol::Empleado) {
+            Session::flash('error', 'No tiene permiso para modificar el inventario.');
+            Response::redirect('/inventario');
+        }
 
         if (!Csrf::validateToken($request->csrfToken())) {
             Response::redirect('/inventario');

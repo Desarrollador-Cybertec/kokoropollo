@@ -14,6 +14,7 @@ $cajaMovimientos      = (isset($cajaMovimientos) && is_array($cajaMovimientos)) 
 $cajaIngresos         = isset($cajaIngresos) ? (float) $cajaIngresos : 0.0;
 $cajaRetiros          = isset($cajaRetiros) ? (float) $cajaRetiros : 0.0;
 $esAdmin              = isset($esAdmin) ? (bool) $esAdmin : false;
+$puedeAjustarCaja     = isset($puedeAjustarCaja) ? (bool) $puedeAjustarCaja : false;
 $empleadosCredito     = (isset($empleadosCredito) && is_array($empleadosCredito)) ? $empleadosCredito : [];
 
 $pageTitle = 'Ventas — Kokoro Pollo';
@@ -440,7 +441,8 @@ body { background: linear-gradient(135deg,#3b0a0a 0%,#4a0e0e 40%,#2b1a1a 100%); 
             </div>
         </div>
 
-        <!-- Formularios Añadir / Retirar (compacto) -->
+        <!-- Formularios Añadir / Retirar (compacto, solo Admin/Jefe) -->
+        <?php if ($puedeAjustarCaja): ?>
         <div class="rounded-2xl p-3 shadow-xl" style="background-color:var(--rojo-card);">
             <h3 class="font-black text-xs uppercase tracking-wider mb-2" style="color:var(--oro);">⚖️ Ajustar caja</h3>
             <div class="grid grid-cols-2 gap-2">
@@ -471,6 +473,7 @@ body { background: linear-gradient(135deg,#3b0a0a 0%,#4a0e0e 40%,#2b1a1a 100%); 
             </div>
             <div id="alertaCaja" class="hidden text-center font-bold px-2 py-1.5 rounded-lg text-xs mt-2"></div>
         </div>
+        <?php endif; /* puedeAjustarCaja */ ?>
 
         <?php if ($esAdmin): ?>
         <!-- ══ PANEL PRÉSTAMOS A EMPLEADOS ══════════════════════ -->

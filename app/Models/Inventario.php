@@ -59,6 +59,21 @@ final class Inventario
         $stmt->execute([$id]);
     }
 
+    /** Suma o resta delta al stock; nunca baja de 0 */
+    public function ajustar(int $id, int $delta): void
+    {
+        if ($delta >= 0) {
+            $stmt = Database::getInstance()->prepare(
+                'UPDATE inventario SET cantidad = cantidad + ? WHERE id = ?'
+            );
+        } else {
+            $stmt = Database::getInstance()->prepare(
+                'UPDATE inventario SET cantidad = GREATEST(0, CAST(cantidad AS SIGNED) + ?) WHERE id = ?'
+            );
+        }
+        $stmt->execute([$delta, $id]);
+    }
+
     /** Descuenta 1 unidad de forma atómica; retorna false si stock ya es 0 */
     public function deductOne(int $id): bool
     {

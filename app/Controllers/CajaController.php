@@ -36,10 +36,13 @@ final class CajaController
             if ($m['tipo'] === 'retiro')  $retirosHoy  += (float) $m['valor'];
         }
 
-        $esAdmin     = $rol?->atLeast(Rol::Administrador) ?? false;
-        $aperturaHoy = $esAdmin ? (new CajaApertura())->getHoy() : null;
-        $cierreHoy   = $esAdmin ? (new CajaCierre())->getHoy()   : null;
-        $precalc     = ($esAdmin && $aperturaHoy && !$cierreHoy)
+        $esAdmin            = $rol?->atLeast(Rol::Administrador) ?? false;
+        $puedeCierre        = $rol !== null;
+        $puedeAnadirRetirar = $esAdmin;
+
+        $aperturaHoy = $puedeCierre ? (new CajaApertura())->getHoy() : null;
+        $cierreHoy   = $puedeCierre ? (new CajaCierre())->getHoy()   : null;
+        $precalc     = ($puedeCierre && $aperturaHoy && !$cierreHoy)
             ? (new CajaCierre())->precalcularDia((int) $aperturaHoy['id'])
             : [];
         $denominaciones = CajaApertura::DENOMINACIONES;
@@ -48,13 +51,20 @@ final class CajaController
             'total', 'movimientosHoy', 'dashboardUrl',
             'hoy', 'ayer', 'lunEs', 'priMes',
             'ingresosHoy', 'retirosHoy', 'ventasPendientesHoy',
-            'esAdmin', 'aperturaHoy', 'cierreHoy', 'precalc', 'denominaciones'
+            'esAdmin', 'puedeCierre', 'puedeAnadirRetirar',
+            'aperturaHoy', 'cierreHoy', 'precalc', 'denominaciones'
         ));
     }
 
     public function process(Request $request): void
     {
         AuthMiddleware::handle();
+
+        $rol = Rol::tryFrom(Session::get('rol') ?? '');
+        if ($rol === Rol::Empleado) {
+            Session::flash('error', 'No tiene permiso para este movimiento.');
+            Response::redirect('/caja');
+        }
 
         if (!Csrf::validateToken($request->csrfToken())) {
             Response::redirect('/caja');

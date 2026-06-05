@@ -14,7 +14,7 @@ final class VentasController
     private const CATEGORIAS_META = [
         'Pollo Crudo'     => ['emoji' => '🐔', 'label' => 'Pollo'],
         'Papas'           => ['emoji' => '🥔', 'label' => 'Papas'],
-        'Acompañamientos' => ['emoji' => '🍌', 'label' => 'Acompañ.'],
+        'Acompañamientos' => ['emoji' => '🥔', 'label' => 'Acompañ.'],
         'Salsas'          => ['emoji' => '🫙', 'label' => 'Salsas'],
         'Bebidas'         => ['emoji' => '🥤', 'label' => 'Bebidas'],
         'Otros'           => ['emoji' => '📦', 'label' => 'Otros'],
@@ -114,11 +114,13 @@ final class VentasController
             $empleadosCredito = $stmt->fetchAll();
         }
 
+        $puedeAjustarCaja = $esAdmin;
+
         View::render('ventas/index', compact(
             'productos', 'productosJson', 'totalDia', 'dashboardUrl',
             'categoriasConfig', 'preciosPolloJson', 'pendienteLiquidacion',
             'cajaTotal', 'cajaMovimientos', 'cajaIngresos', 'cajaRetiros', 'esAdmin',
-            'empleadosCredito'
+            'empleadosCredito', 'puedeAjustarCaja'
         ));
     }
 

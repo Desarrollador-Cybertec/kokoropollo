@@ -113,8 +113,8 @@ final class CajaCierreController
     private function soloAdmin(): void
     {
         $rol = Rol::tryFrom(Session::get('rol') ?? '');
-        if ($rol === null || !$rol->atLeast(Rol::Administrador)) {
-            Response::redirect($rol?->dashboard() ?? '/');
+        if ($rol === null) {
+            Response::redirect('/');
         }
     }
 }
