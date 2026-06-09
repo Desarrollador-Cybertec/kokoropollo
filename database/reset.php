@@ -251,17 +251,81 @@ try {
     }
 
     echo 'Sembrando datos iniciales...' . PHP_EOL;
-    $stmt = $pdo->prepare(
-        "INSERT IGNORE INTO usuarios (nombre, usuario, clave, rol) VALUES (?, ?, ?, 'Jefe')"
-    );
-    $stmt->execute([
-        'Administrador',
-        'admin',
-        password_hash('admin123', PASSWORD_BCRYPT, ['cost' => 12]),
-    ]);
 
-    echo 'Proceso completado: DB recreada con esquema completo y datos semilla.' . PHP_EOL;
-    echo 'Credenciales iniciales: usuario=admin / clave=admin123' . PHP_EOL;
+    // Usuarios
+    $stmtUsr = $pdo->prepare(
+        "INSERT INTO usuarios (nombre, usuario, clave, rol) VALUES (?, ?, ?, ?)"
+    );
+    foreach ([
+        ['Administrador', 'admin',     'admin123', 'Jefe'],
+        ['Admin 1',       'admin1',    'admin123', 'Administrador'],
+        ['Operador 1',    'Operador1', 'Admin123', 'Empleado'],
+    ] as [$nombre, $usuario, $clave, $rol]) {
+        $stmtUsr->execute([$nombre, $usuario, password_hash($clave, PASSWORD_BCRYPT, ['cost' => 12]), $rol]);
+        echo "  [OK] Usuario {$usuario} (rol: {$rol})." . PHP_EOL;
+    }
+
+    // Fila única de caja
+    $pdo->exec("INSERT INTO caja (id, total) VALUES (1, 0.00)");
+    echo '  [OK] Fila de caja lista.' . PHP_EOL;
+
+    // Inventario — artículos nuevos (Pollo Crudo y Acompañamientos)
+    // Pollo Crudo se almacena en cuartos (1 pollo = 4 cuartos en BD)
+    $stmtInv = $pdo->prepare(
+        "INSERT INTO inventario (articulo, categoria, cantidad, valor) VALUES (?, ?, ?, ?)"
+    );
+    foreach ([
+        ['Pollo',              'Pollo Crudo',     80, 0],  // 20 pollos × 4 cuartos
+        ['Papa Criolla',       'Acompañamientos', 15, 1500.00],
+        ['Papa a la Francesa', 'Acompañamientos', 15, 1500.00],
+        ['Maduro',             'Acompañamientos', 15,  800.00],
+        ['Ensalada',           'Acompañamientos', 15, 1000.00],
+        ['Arroz',              'Acompañamientos', 15, 1000.00],
+        ['Sal / Condimentos',  'Otros',           10,  300.00],
+    ] as [$articulo, $categoria, $cantidad, $valor]) {
+        $stmtInv->execute([$articulo, $categoria, $cantidad, $valor]);
+        echo "  [OK] Inventario: {$articulo} — {$cantidad} uds." . PHP_EOL;
+    }
+
+    // Inventario — cantidades para items insertados por migración (migración los deja en cantidad=0)
+    $stmtBeb = $pdo->prepare(
+        "UPDATE inventario SET cantidad = ?, valor = ? WHERE articulo = ?"
+    );
+    foreach ([
+        ['Caja para Pollo',        50,   0],
+        ['Pony Malta',             24,  3200.00],
+        ['Cerveza Lata',           24,  4500.00],
+        ['Malta Lata',             24,  3200.00],
+        ['Refajo Lata',            24,  4200.00],
+        ['Gaseosa 250',            48,  1800.00],
+        ['Gaseosa 350',            48,  2000.00],
+        ['Gaseosa 1 Litro',        12,  3500.00],
+        ['Gaseosa 1.65 Litros',    12,  5000.00],
+        ['Gaseosa Mega 3 Litros',   6,  7500.00],
+        ['Agua 300',               48,  1200.00],
+        ['Agua 600',               24,  1800.00],
+        ['Hit 250',                48,  1800.00],
+        ['Hit 350',                24,  2000.00],
+        ['Hit Litro',              12,  3500.00],
+        ['PET',                    12,  2500.00],
+        ['Mister Tea',             24,  2800.00],
+    ] as [$articulo, $cantidad, $valor]) {
+        $stmtBeb->execute([$cantidad, $valor, $articulo]);
+        echo "  [OK] Inventario: {$articulo} — {$cantidad} uds." . PHP_EOL;
+    }
+
+    echo PHP_EOL;
+    echo '╔═══════════════════════════════════════════════════╗' . PHP_EOL;
+    echo '║         Reset completado correctamente            ║' . PHP_EOL;
+    echo '╠═══════════════════════════════════════════════════╣' . PHP_EOL;
+    echo '║  usuario    clave       rol                       ║' . PHP_EOL;
+    echo '║  ─────────────────────────────────────────────    ║' . PHP_EOL;
+    echo '║  admin      admin123    Jefe                      ║' . PHP_EOL;
+    echo '║  admin1     admin123    Administrador             ║' . PHP_EOL;
+    echo '║  Operador1  Admin123    Empleado                  ║' . PHP_EOL;
+    echo '╠═══════════════════════════════════════════════════╣' . PHP_EOL;
+    echo '║  ⚠  Cambia las claves antes de producción         ║' . PHP_EOL;
+    echo '╚═══════════════════════════════════════════════════╝' . PHP_EOL;
     exit(0);
 } catch (PDOException $e) {
     fwrite(STDERR, 'Error de base de datos: ' . $e->getMessage() . PHP_EOL);
