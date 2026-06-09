@@ -266,7 +266,7 @@ try {
     }
 
     // Fila única de caja
-    $pdo->exec("INSERT INTO caja (id, total) VALUES (1, 0.00)");
+    $pdo->exec("INSERT IGNORE INTO caja (id, total) VALUES (1, 0.00)");
     echo '  [OK] Fila de caja lista.' . PHP_EOL;
 
     // Inventario — artículos nuevos (Pollo Crudo y Acompañamientos)
