@@ -7,7 +7,6 @@ $editarItem  = (isset($editarItem) && is_array($editarItem)) ? $editarItem : nul
 $busqueda    = isset($busqueda) ? (string) $busqueda : '';
 $dashboardUrl = isset($dashboardUrl) ? (string) $dashboardUrl : '/dashboard';
 $soloLectura = (bool) ($soloLectura ?? false);
-$movimientos = (isset($movimientos) && is_array($movimientos)) ? $movimientos : [];
 
 function formatCantidad(int $cuartos, string $categoria): string
 {
@@ -33,10 +32,74 @@ $categorias = [
 $pageTitle = 'Inventario — Kokoro Pollo';
 require dirname(__DIR__) . '/partials/head.php';
 ?>
+<style>
+dialog::backdrop {
+    background: rgba(0,0,0,0.65);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+</style>
 <body class="min-h-screen py-8 pb-28" style="background:linear-gradient(135deg,#3b0a0a 0%,#4a0e0e 40%,#2b1a1a 100%);">
 
 <?php require dirname(__DIR__) . '/partials/toasts.php' ?>
 <?php require dirname(__DIR__) . '/partials/confirm-modal.php' ?>
+
+<!-- Modal Historial de Movimientos -->
+<dialog id="modal-historial"
+        class="rounded-2xl shadow-2xl p-0 border-0 w-full max-w-5xl"
+        style="background-color:var(--rojo-card); color:white; max-height:90vh; overflow:hidden;">
+    <div style="display:flex; flex-direction:column; max-height:90vh;">
+        <div class="flex items-center justify-between px-6 pt-5 pb-4"
+             style="border-bottom:1px solid var(--rojo-mid); flex-shrink:0;">
+            <h2 class="text-xl font-black" style="color:var(--oro);">📋 Historial de Movimientos</h2>
+            <button type="button" onclick="document.getElementById('modal-historial').close()"
+                    class="font-bold text-lg px-3 py-1 rounded-lg btn-secondary">✕</button>
+        </div>
+        <div class="px-6 py-4" style="border-bottom:1px solid var(--rojo-mid); flex-shrink:0;">
+            <div class="flex flex-wrap gap-3 items-end">
+                <div style="flex:2; min-width:160px;">
+                    <label class="block text-xs font-bold mb-1" style="color:var(--oro);">Artículo</label>
+                    <select id="hist-articulo" class="w-full px-3 py-2 rounded-xl input-dark text-sm" style="color:var(--oro);">
+                        <option value="">Todos los artículos</option>
+                        <?php foreach ($items as $it): ?>
+                        <option value="<?= (int)$it['id'] ?>"><?= View::escape($it['articulo']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div style="flex:1; min-width:130px;">
+                    <label class="block text-xs font-bold mb-1" style="color:var(--oro);">Categoría</label>
+                    <select id="hist-categoria" class="w-full px-3 py-2 rounded-xl input-dark text-sm" style="color:var(--oro);">
+                        <option value="">Todas</option>
+                        <?php foreach ($categorias as $cat => $cfg): ?>
+                        <option value="<?= $cat ?>"><?= $cfg['emoji'] ?> <?= $cat ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold mb-1" style="color:var(--oro);">Desde</label>
+                    <input type="date" id="hist-desde" class="px-3 py-2 rounded-xl input-dark text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold mb-1" style="color:var(--oro);">Hasta</label>
+                    <input type="date" id="hist-hasta" class="px-3 py-2 rounded-xl input-dark text-sm">
+                </div>
+                <div class="flex gap-2">
+                    <button type="button" onclick="buscarHistorial(1)"
+                            class="font-bold px-5 py-2 rounded-xl btn-primary text-sm">
+                        Buscar
+                    </button>
+                    <button type="button" onclick="limpiarHistorial()"
+                            class="font-bold px-4 py-2 rounded-xl btn-secondary text-sm">
+                        Limpiar
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div id="hist-resultado" style="overflow-y:auto; flex:1; padding:1rem 1.5rem;">
+            <p class="text-center py-8" style="color:#9ca3af;">Selecciona filtros y presiona Buscar.</p>
+        </div>
+    </div>
+</dialog>
 
 <!-- Modal entrada / salida -->
 <dialog id="modal-movimiento"
@@ -194,6 +257,11 @@ require dirname(__DIR__) . '/partials/head.php';
                     Limpiar
                 </a>
             <?php endif; ?>
+            <button type="button" onclick="abrirHistorial()"
+                    class="font-bold text-lg px-6 py-3 rounded-xl whitespace-nowrap"
+                    style="background-color:#1e3a5f; color:#bae6fd;">
+                📋 Historial
+            </button>
         </form>
     </div>
 
@@ -227,8 +295,6 @@ require dirname(__DIR__) . '/partials/head.php';
                         ? (int)$item['cantidad'] < 4
                         : (int)$item['cantidad'] <= 5;
                     $itemId    = (int) $item['id'];
-                    $movs      = $movimientos[$itemId] ?? [];
-                    $unidad    = $esPollo ? 'pollos' : 'uds';
                 ?>
                     <!-- Fila principal -->
                     <tr class="border-b text-white tr-dark" style="border-color:var(--rojo-mid);">
@@ -281,63 +347,12 @@ require dirname(__DIR__) . '/partials/head.php';
                                             🗑️
                                         </button>
                                     </form>
-                                    <?php if (!empty($movs)): ?>
-                                    <button type="button"
-                                            class="font-bold px-3 py-1 rounded-lg text-sm whitespace-nowrap"
-                                            style="background-color:#1e3a5f; color:#bae6fd;"
-                                            onclick="toggleHist(<?= $itemId ?>)">
-                                        📋 Historial
-                                    </button>
-                                    <?php endif; ?>
                                 </div>
                             </div>
                         </td>
                         <?php endif; ?>
                     </tr>
 
-                    <!-- Fila historial (oculta por defecto) -->
-                    <?php if (!empty($movs)): ?>
-                    <tr id="hist-<?= $itemId ?>" class="hidden">
-                        <td colspan="<?= $soloLectura ? 4 : 5 ?>"
-                            style="background-color:var(--rojo-deep); padding:0 1rem 1rem;">
-                            <p class="text-sm font-bold pt-3 pb-2" style="color:var(--oro);">
-                                Últimos movimientos — <?= View::escape($item['articulo']) ?>
-                            </p>
-                            <table class="w-full text-sm">
-                                <thead>
-                                    <tr style="color:#9ca3af;">
-                                        <th class="text-left py-1 pr-4">Tipo</th>
-                                        <th class="text-left py-1 pr-4">Cantidad</th>
-                                        <th class="text-left py-1 pr-4">Usuario</th>
-                                        <th class="text-left py-1">Fecha</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                <?php foreach ($movs as $mov): ?>
-                                    <tr class="border-t" style="border-color:#3f1a1a;">
-                                        <td class="py-1 pr-4">
-                                            <?php if ($mov['tipo'] === 'entrada'): ?>
-                                                <span class="font-bold" style="color:#86efac;">⬆ Entrada</span>
-                                            <?php else: ?>
-                                                <span class="font-bold" style="color:#fca5a5;">⬇ Salida</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td class="py-1 pr-4 font-semibold text-white">
-                                            <?= (int) $mov['cantidad'] ?> <?= $unidad ?>
-                                        </td>
-                                        <td class="py-1 pr-4" style="color:#d1d5db;">
-                                            <?= View::escape($mov['usuario']) ?>
-                                        </td>
-                                        <td class="py-1" style="color:#9ca3af;">
-                                            <?= date('d/m/Y H:i', strtotime($mov['creado'])) ?>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </td>
-                    </tr>
-                    <?php endif; ?>
 
                 <?php endforeach; ?>
                 <?php if (empty($items)): ?>
@@ -390,13 +405,118 @@ function abrirMovimiento(id, tipo, articulo, esPollo) {
     const icono = tipo === 'entrada' ? '➕ Entrada' : '➖ Salida';
     document.getElementById('modal-titulo').textContent = icono + ' — ' + articulo;
     document.getElementById('modal-unidad').textContent = esPollo ? 'pollos' : 'uds';
+    document.body.style.overflow = 'hidden';
     document.getElementById('modal-movimiento').showModal();
 }
 
-function toggleHist(id) {
-    const row = document.getElementById('hist-' + id);
-    if (row) row.classList.toggle('hidden');
+let histPagActual = 1;
+
+function abrirHistorial() {
+    document.body.style.overflow = 'hidden';
+    document.getElementById('modal-historial').showModal();
+    buscarHistorial(1);
 }
+
+function limpiarHistorial() {
+    document.getElementById('hist-articulo').value  = '';
+    document.getElementById('hist-categoria').value = '';
+    document.getElementById('hist-desde').value     = '';
+    document.getElementById('hist-hasta').value     = '';
+    buscarHistorial(1);
+}
+
+async function buscarHistorial(pagina) {
+    histPagActual = pagina || 1;
+    const params = new URLSearchParams();
+    const art   = document.getElementById('hist-articulo').value;
+    const cat   = document.getElementById('hist-categoria').value;
+    const desde = document.getElementById('hist-desde').value;
+    const hasta = document.getElementById('hist-hasta').value;
+    if (art)   params.set('articulo_id', art);
+    if (cat)   params.set('categoria', cat);
+    if (desde) params.set('desde', desde);
+    if (hasta) params.set('hasta', hasta);
+    params.set('pagina', histPagActual);
+
+    const cont = document.getElementById('hist-resultado');
+    cont.innerHTML = '<p class="text-center py-8" style="color:#9ca3af;">Cargando...</p>';
+
+    try {
+        const r = await fetch('/inventario/historial?' + params);
+        if (!r.ok) throw new Error();
+        renderHistorial(await r.json());
+    } catch {
+        cont.innerHTML = '<p class="text-center py-8 text-red-400">Error al cargar los datos.</p>';
+    }
+}
+
+function renderHistorial(data) {
+    const cont = document.getElementById('hist-resultado');
+    const movs  = data.movimientos || [];
+    const total = data.total        || 0;
+    const pp    = data.por_pagina   || 50;
+
+    if (!movs.length) {
+        cont.innerHTML = '<p class="text-center py-8" style="color:#9ca3af;">Sin movimientos para los filtros seleccionados.</p>';
+        return;
+    }
+
+    const catColor = { 'Pollo Crudo':'#f59e0b', 'Acompañamientos':'#84cc16', 'Bebidas':'#38bdf8', 'Otros':'#9ca3af' };
+
+    let html = '<div class="overflow-x-auto"><table class="w-full text-sm">'
+        + '<thead><tr style="color:var(--oro); background-color:var(--rojo-mid);">'
+        + '<th class="px-3 py-2 text-left font-bold">Tipo</th>'
+        + '<th class="px-3 py-2 text-left font-bold">Artículo</th>'
+        + '<th class="px-3 py-2 text-left font-bold">Categoría</th>'
+        + '<th class="px-3 py-2 text-left font-bold">Cantidad</th>'
+        + '<th class="px-3 py-2 text-left font-bold">Usuario</th>'
+        + '<th class="px-3 py-2 text-left font-bold">Fecha</th>'
+        + '</tr></thead><tbody>';
+
+    for (const m of movs) {
+        const tipo = m.tipo === 'entrada'
+            ? '<span class="font-bold" style="color:#86efac;">⬆ Entrada</span>'
+            : '<span class="font-bold" style="color:#fca5a5;">⬇ Salida</span>';
+        const d    = new Date(m.creado.replace(' ', 'T'));
+        const fecha = d.toLocaleDateString('es-CO', {day:'2-digit', month:'2-digit', year:'numeric'})
+            + ' ' + d.toLocaleTimeString('es-CO', {hour:'2-digit', minute:'2-digit'});
+        html += `<tr class="border-t" style="border-color:#3f1a1a; color:white;">
+            <td class="px-3 py-2">${tipo}</td>
+            <td class="px-3 py-2 font-semibold">${escHtml(m.articulo)}</td>
+            <td class="px-3 py-2 font-semibold" style="color:${catColor[m.categoria]||'#9ca3af'};">${escHtml(m.categoria)}</td>
+            <td class="px-3 py-2">${m.cantidad}</td>
+            <td class="px-3 py-2" style="color:#d1d5db;">${escHtml(m.usuario)}</td>
+            <td class="px-3 py-2" style="color:#9ca3af;">${fecha}</td>
+        </tr>`;
+    }
+    html += '</tbody></table></div>';
+
+    const totalPags = Math.ceil(total / pp);
+    html += '<div class="flex items-center justify-between mt-4 flex-wrap gap-2">';
+    html += `<span class="text-sm" style="color:#9ca3af;">Total: ${total} movimiento${total !== 1 ? 's' : ''}</span>`;
+    if (totalPags > 1) {
+        html += '<div class="flex gap-1">';
+        if (histPagActual > 1) html += `<button onclick="buscarHistorial(${histPagActual-1})" class="px-3 py-1 rounded btn-secondary font-bold text-sm">←</button>`;
+        const s = Math.max(1, histPagActual - 2), e = Math.min(totalPags, histPagActual + 2);
+        for (let p = s; p <= e; p++) {
+            html += `<button onclick="buscarHistorial(${p})" class="px-3 py-1 rounded ${p === histPagActual ? 'btn-primary' : 'btn-secondary'} font-bold text-sm">${p}</button>`;
+        }
+        if (histPagActual < totalPags) html += `<button onclick="buscarHistorial(${histPagActual+1})" class="px-3 py-1 rounded btn-secondary font-bold text-sm">→</button>`;
+        html += '</div>';
+    }
+    html += '</div>';
+    cont.innerHTML = html;
+}
+
+function escHtml(str) {
+    const d = document.createElement('div');
+    d.appendChild(document.createTextNode(String(str)));
+    return d.innerHTML;
+}
+
+document.querySelectorAll('dialog').forEach(d => {
+    d.addEventListener('close', () => { document.body.style.overflow = ''; });
+});
 </script>
 
 </body>

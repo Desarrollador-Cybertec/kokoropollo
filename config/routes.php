@@ -36,6 +36,7 @@ $router->post('/inventario/store',      [InventarioController::class, 'store']);
 $router->post('/inventario/update',     [InventarioController::class, 'update']);
 $router->post('/inventario/movimiento', [InventarioController::class, 'movimiento']);
 $router->post('/inventario/delete',     [InventarioController::class, 'destroy']);
+$router->get('/inventario/historial',   [InventarioController::class, 'historial']);
 
 // ── Caja ───────────────────────────────────────────────────
 $router->get('/caja',               [CajaController::class, 'index']);

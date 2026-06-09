@@ -25,9 +25,8 @@ final class InventarioController
         $rol          = Rol::tryFrom(Session::get('rol') ?? '');
         $dashboardUrl = $rol?->dashboard() ?? '/dashboard';
         $soloLectura  = ($rol === Rol::Empleado);
-        $movimientos  = (new InventarioMovimiento())->todosAgrupados();
 
-        View::render('inventario/index', compact('items', 'editarItem', 'busqueda', 'dashboardUrl', 'soloLectura', 'movimientos'));
+        View::render('inventario/index', compact('items', 'editarItem', 'busqueda', 'dashboardUrl', 'soloLectura'));
     }
 
     public function store(Request $request): void
@@ -168,6 +167,33 @@ final class InventarioController
         }
 
         Response::redirect('/inventario');
+    }
+
+    public function historial(Request $request): void
+    {
+        AuthMiddleware::handle();
+
+        $inventarioId = (int) $request->get('articulo_id', 0) ?: null;
+        $categoria    = $request->get('categoria', '');
+        $desde        = $request->get('desde', '');
+        $hasta        = $request->get('hasta', '');
+        $pagina       = max(1, (int) $request->get('pagina', 1));
+
+        if ($categoria !== '' && !in_array($categoria, \App\Models\Inventario::categorias(), strict: true)) {
+            $categoria = '';
+        }
+        $desde = preg_match('/^\d{4}-\d{2}-\d{2}$/', $desde) ? $desde : '';
+        $hasta = preg_match('/^\d{4}-\d{2}-\d{2}$/', $hasta) ? $hasta : '';
+
+        $result = (new InventarioMovimiento())->filtrar(
+            $inventarioId,
+            $categoria !== '' ? $categoria : null,
+            $desde      !== '' ? $desde      : null,
+            $hasta      !== '' ? $hasta      : null,
+            $pagina
+        );
+
+        Response::json($result);
     }
 
     public function destroy(Request $request): void

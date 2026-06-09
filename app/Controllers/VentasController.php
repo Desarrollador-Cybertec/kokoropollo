@@ -231,11 +231,6 @@ final class VentasController
     public function liquidar(Request $request): void
     {
         AuthMiddleware::handle();
-        // C-02: Solo Administrador o superior puede liquidar ventas a caja
-        $rolActual = Rol::tryFrom(Session::get('rol') ?? '');
-        if (!$rolActual?->atLeast(Rol::Administrador)) {
-            Response::json(['status' => 'error', 'mensaje' => 'Acceso denegado.'], 403);
-        }
 
         header('Content-Type: application/json; charset=utf-8');
 
